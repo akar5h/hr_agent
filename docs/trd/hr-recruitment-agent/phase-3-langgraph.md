@@ -2,13 +2,13 @@
 
 ## 1. Overview
 
-Phase 3 assembles the main ReAct agent using LangGraph's `create_react_agent`. The agent receives all 10 tools (built in Phase 2), a system prompt injecting client context (with no guardrails), and a `MemorySaver` checkpointer for cross-turn persistence.
+Phase 3 assembles the main ReAct agent using LangChain's `create_agent`. The agent receives all 10 tools (built in Phase 2), a system prompt injecting client context (with no guardrails), and a `MemorySaver` checkpointer for cross-turn persistence.
 
 **Key Design Decisions:**
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Agent framework | LangGraph `create_react_agent` | Built-in ReAct loop, tool orchestration, checkpointing |
+| Agent framework | LangChain `create_agent` | Built-in ReAct loop, tool orchestration, checkpointing |
 | LLM | Claude Sonnet via `ChatAnthropic` | Strong reasoning, tool-use support |
 | Checkpointer | `MemorySaver` (in-memory) | Simple, no external DB needed; sufficient for demo |
 | Prompt injection | Direct f-string interpolation | Intentionally vulnerable — no sanitization |
@@ -17,10 +17,10 @@ Phase 3 assembles the main ReAct agent using LangGraph's `create_react_agent`. T
 **API Import (Critical):**
 
 ```python
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 ```
 
-This is the correct 2025/2026 LangGraph API. Do **NOT** use `from langchain.agents import create_agent` or any legacy LangChain agent constructors. The `create_react_agent` function from `langgraph.prebuilt` builds a compiled `CompiledGraph` with a ReAct reasoning loop.
+This is the correct 2026 API for this project. The `create_agent` function builds a compiled agent graph with a ReAct-style reasoning loop.
 
 ---
 
@@ -85,7 +85,7 @@ class ATSState(TypedDict):
 
 ```python
 import os
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_anthropic import ChatAnthropic
 from src.tools import ALL_TOOLS
@@ -103,18 +103,18 @@ def build_agent(client_id: str = "default", session_id: str = "default"):
     system_prompt = build_system_prompt(client_id=client_id, session_id=session_id)
     checkpointer = MemorySaver()
 
-    agent = create_react_agent(
+    agent = create_agent(
         model=model,
         tools=ALL_TOOLS,
-        prompt=system_prompt,
+        system_prompt=system_prompt,
         checkpointer=checkpointer,
     )
     return agent
 ```
 
-### How `create_react_agent` Works
+### How `create_agent` Works
 
-The function from `langgraph.prebuilt` creates a compiled `CompiledGraph` that runs a ReAct (Reasoning + Acting) loop:
+The function from `langchain.agents` creates a compiled graph that runs a ReAct (Reasoning + Acting) loop:
 
 1. Agent receives messages + system prompt
 2. LLM decides to either call a tool OR produce a final answer
@@ -136,7 +136,7 @@ And edges:
 |-----------|-------|-------|
 | `model` | `ChatAnthropic(model="claude-sonnet-4-6")` | Temperature 0 for deterministic evaluations |
 | `tools` | `ALL_TOOLS` | All 10 tools from Phase 2 (`src/tools/__init__.py`) |
-| `prompt` | `str` from `build_system_prompt()` | System message prepended to every LLM call |
+| `system_prompt` | `str` from `build_system_prompt()` | System message prepended to every LLM call |
 | `checkpointer` | `MemorySaver()` | In-memory state persistence keyed by `thread_id` |
 
 ---

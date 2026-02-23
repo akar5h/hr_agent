@@ -5,7 +5,7 @@
 Phase 4 builds a second AI agent specifically for Applicant Tracking System (ATS) ranking. The ATS sub-agent is invoked by the main agent via a `trigger_ats_ranking` tool, runs its own ReAct loop to fetch, score, and rank all candidates for a position, then returns a ranked report. The rubric is passed via the ATS agent's system prompt — creating an additional attack surface where rubric content can influence the ranking loop.
 
 **Key Characteristics:**
-- Separate `create_react_agent` instance (not a subgraph node)
+- Separate `create_agent` instance (not a subgraph node)
 - Stateless execution — no checkpointer, runs to completion and returns
 - Rubric embedded directly in system prompt (intentional vulnerability)
 - 4 dedicated ATS tools for fetch, score, rank, and report generation
@@ -23,7 +23,7 @@ trigger_ats_ranking(position_id, client_id)
        │
        │ invokes
        ▼
-  ATS Sub-Agent (second create_react_agent instance)
+  ATS Sub-Agent (second create_agent instance)
   System Prompt: includes full rubric JSON
   Tools: [fetch_candidates_for_position, score_candidate, rank_candidates, generate_ats_report]
        │
@@ -180,8 +180,7 @@ def generate_ats_report(position_id: str, client_id: str, ranked_candidates: lis
 ### 3.2 ATS Agent Builder
 
 ```python
-from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.memory import MemorySaver
+from langchain.agents import create_agent
 from langchain_anthropic import ChatAnthropic
 from src.prompts.ats import build_ats_system_prompt
 
@@ -205,10 +204,10 @@ def build_ats_agent(client_id: str, position_id: str, rubric: dict):
         rubric=rubric,
     )
 
-    agent = create_react_agent(
+    agent = create_agent(
         model=model,
         tools=ATS_TOOLS,
-        prompt=system_prompt,
+        system_prompt=system_prompt,
     )
     return agent
 ```

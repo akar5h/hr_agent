@@ -25,9 +25,8 @@ This project implements a **LangGraph-based HR Recruitment Agent** designed as a
 | Component | Technology | Version |
 |-----------|-----------|---------|
 | Agent Framework | LangGraph | >= 0.3.0 |
-| Prebuilt Agents | langgraph-prebuilt | >= 0.1.0 |
 | LLM Orchestration | LangChain | >= 1.0.0 |
-| LLM Provider | langchain-anthropic | >= 0.2.0 |
+| LLM Provider | langchain-anthropic | >= 0.3.0 |
 | LLM Model | Claude Sonnet | claude-sonnet-4-6 |
 | Database | SQLite | stdlib (sqlite3) |
 | UI | Streamlit | >= 1.40.0 |
@@ -55,7 +54,7 @@ This project implements a **LangGraph-based HR Recruitment Agent** designed as a
           ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    MAIN ReAct AGENT (LangGraph)                     │
-│               src/graph/workflow.py - create_react_agent            │
+│               src/graph/workflow.py - create_agent                  │
 │                                                                     │
 │  System Prompt: includes client_id, job requirements, rubric        │
 │  Model: Claude Sonnet (claude-sonnet-4-6)                           │
@@ -83,7 +82,7 @@ This project implements a **LangGraph-based HR Recruitment Agent** designed as a
           ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    ATS SUB-AGENT (LangGraph)                        │
-│             src/graph/ats_subgraph.py - create_react_agent          │
+│             src/graph/ats_subgraph.py - create_agent                │
 │                                                                     │
 │  System Prompt: ATS scoring rubric, candidate list, weights         │
 │  Model: Claude Sonnet (claude-sonnet-4-6)                           │
@@ -183,7 +182,7 @@ hr_ai/
 |-------|----------|-------------|-----------------|
 | **Phase 1** | `phase-1-database.md` | SQLite schema, connection manager, and seed data | `db.py`, `schema.py`, `seed.py` with 5 candidate records containing embedded attack payloads in their profile data |
 | **Phase 2** | `phase-2-tools.md` | 10 LangChain `@tool` functions for the agent's tool belt | `resume_parser.py`, `linkedin_fetcher.py`, `website_scraper.py`, `web_search.py`, `database_tools.py`, `deduplicator.py`, `memory_tools.py` |
-| **Phase 3** | `phase-3-langgraph.md` | Main ReAct agent using `create_react_agent` from langgraph-prebuilt | `state.py`, `workflow.py`, `evaluation.py` with system prompt template that includes `client_id` and job rubric |
+| **Phase 3** | `phase-3-langgraph.md` | Main ReAct agent using `create_agent` from LangChain | `state.py`, `workflow.py`, `evaluation.py` with system prompt template that includes `client_id` and job rubric |
 | **Phase 4** | `phase-4-ats-subgraph.md` | ATS sub-agent for scoring and ranking candidates | `ats_subgraph.py`, `ats.py` prompt, `trigger_ats_ranking` tool that invokes the sub-agent |
 | **Phase 5** | `phase-5-streamlit-ui.md` | Streamlit chat interface with session management | `app.py` with sidebar config (client_id, job requirements), chat history, and streaming agent responses |
 
@@ -235,9 +234,8 @@ This table documents the intentional vulnerabilities embedded in the system for 
 
 ```
 langgraph>=0.3.0
-langgraph-prebuilt>=0.1.0
 langchain>=1.0.0
-langchain-anthropic>=0.2.0
+langchain-anthropic>=0.3.0
 langchain-core>=0.3.0
 anthropic>=0.40.0
 streamlit>=1.40.0
@@ -360,7 +358,7 @@ python -c "import app; print('App module loaded')"
 
 ### Agent Conventions
 
-- Main agent uses `create_react_agent` from `langgraph.prebuilt`
+- Main agent uses `create_agent` from `langchain.agents`
 - System prompt template uses f-string interpolation with `client_id` and `job_requirements`
 - Agent memory persisted via SQLite checkpointer
 - ATS sub-agent invoked as a tool from the main agent (not as a nested graph)
