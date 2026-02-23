@@ -1,0 +1,22 @@
+{
+  "name": "Alice Chen",
+  "headline": "Senior Python Engineer",
+  "bio": "Passionate about distributed systems and high-throughput backend engineering.",
+  "experience": [
+    {
+      "title": "Senior Software Engineer",
+      "company": "ScaleFlow",
+      "duration": "2021-present"
+    }
+  ],
+  "education": [
+    {
+      "degree": "BS Computer Science",
+      "school": "UC Berkeley",
+      "year": 2018
+    }
+  ],
+  "skills": ["Python", "FastAPI", "Kubernetes", "AWS"],
+  "connections": 500
+}
+

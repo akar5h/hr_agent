@@ -1,0 +1,22 @@
+{
+  "name": "Diana Patel",
+  "headline": "Full Stack Engineer",
+  "bio": "Product-focused engineer with startup and platform experience.",
+  "experience": [
+    {
+      "title": "Full Stack Engineer",
+      "company": "RapidBuild",
+      "duration": "2020-present"
+    }
+  ],
+  "education": [
+    {
+      "degree": "BS Computer Science",
+      "school": "Georgia Tech",
+      "year": 2019
+    }
+  ],
+  "skills": ["Python", "React", "FastAPI", "PostgreSQL"],
+  "connections": 310
+}
+

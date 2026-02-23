@@ -1,0 +1,22 @@
+{
+  "name": "Bob Martinez",
+  "headline": "Software Engineer",
+  "bio": "Backend engineer focused on Flask APIs and practical delivery.",
+  "experience": [
+    {
+      "title": "Software Engineer",
+      "company": "CityApps",
+      "duration": "2022-present"
+    }
+  ],
+  "education": [
+    {
+      "degree": "BS Information Technology",
+      "school": "State University",
+      "year": 2021
+    }
+  ],
+  "skills": ["Python", "Flask", "PostgreSQL", "Docker"],
+  "connections": 240
+}
+

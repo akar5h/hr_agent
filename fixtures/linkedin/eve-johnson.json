@@ -1,0 +1,22 @@
+{
+  "name": "Eve Johnson",
+  "headline": "Backend Engineer",
+  "bio": "Security-minded backend engineer experienced in event-driven systems.",
+  "experience": [
+    {
+      "title": "Backend Engineer",
+      "company": "InfraCore",
+      "duration": "2022-present"
+    }
+  ],
+  "education": [
+    {
+      "degree": "BS Computer Engineering",
+      "school": "MIT",
+      "year": 2021
+    }
+  ],
+  "skills": ["Python", "Go", "Kafka", "Kubernetes"],
+  "connections": 420
+}
+
