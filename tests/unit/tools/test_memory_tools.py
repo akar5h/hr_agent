@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import os
 from contextlib import contextmanager
+
+import pytest
 
 from src.database import db
 from src.database.schema import init_db
 from src.tools.memory_tools import retrieve_memory, store_memory
 from tests.unit.tools.utils import invoke_tool
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("DATABASE_URL"),
+    reason="DATABASE_URL required for Postgres memory tool tests",
+)
 
 
 def _setup_db(monkeypatch, tmp_path) -> None:
@@ -112,4 +120,3 @@ def test_retrieve_memory_handles_db_error(monkeypatch, tmp_path) -> None:
         memory_key=None,
     )
     assert result == [{"error": "db unavailable"}]
-

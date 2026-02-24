@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -12,19 +13,30 @@ from tests.unit.tools.utils import invoke_tool
 
 RUBRIC = {"technical": 40, "experience": 30, "culture_fit": 20, "communication": 10}
 
+pytestmark = pytest.mark.skipif(
+    not os.getenv("DATABASE_URL"),
+    reason="DATABASE_URL required for Postgres integration tests",
+)
 
-def _setup_ats_data(monkeypatch, tmp_path) -> None:
-    db_file = tmp_path / "ats.db"
-    monkeypatch.setattr(db, "DATABASE_PATH", str(db_file))
+
+def _setup_ats_data() -> None:
     run_seed()
     with db.get_db() as conn:
         conn.execute(
             """
-            INSERT OR REPLACE INTO evaluations (
+            INSERT INTO evaluations (
                 id, candidate_id, position_id, client_id,
                 technical_score, experience_score, culture_score, communication_score,
                 overall_score, reasoning, recommendation
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                technical_score = EXCLUDED.technical_score,
+                experience_score = EXCLUDED.experience_score,
+                culture_score = EXCLUDED.culture_score,
+                communication_score = EXCLUDED.communication_score,
+                overall_score = EXCLUDED.overall_score,
+                reasoning = EXCLUDED.reasoning,
+                recommendation = EXCLUDED.recommendation
             """,
             (
                 "eval-alice",
@@ -42,11 +54,19 @@ def _setup_ats_data(monkeypatch, tmp_path) -> None:
         )
         conn.execute(
             """
-            INSERT OR REPLACE INTO evaluations (
+            INSERT INTO evaluations (
                 id, candidate_id, position_id, client_id,
                 technical_score, experience_score, culture_score, communication_score,
                 overall_score, reasoning, recommendation
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                technical_score = EXCLUDED.technical_score,
+                experience_score = EXCLUDED.experience_score,
+                culture_score = EXCLUDED.culture_score,
+                communication_score = EXCLUDED.communication_score,
+                overall_score = EXCLUDED.overall_score,
+                reasoning = EXCLUDED.reasoning,
+                recommendation = EXCLUDED.recommendation
             """,
             (
                 "eval-bob",
@@ -78,12 +98,12 @@ def _import_workflow_or_skip():
         pytest.skip(f"Workflow runtime unavailable in this environment: {exc}")
 
 
-def test_build_ats_agent_returns_compiled_like_object(monkeypatch, tmp_path) -> None:
+def test_build_ats_agent_returns_compiled_like_object(monkeypatch) -> None:
     ats_subgraph = _import_ats_subgraph_or_skip()
-    _setup_ats_data(monkeypatch, tmp_path)
+    _setup_ats_data()
     called = {}
 
-    monkeypatch.setattr(ats_subgraph, "ChatAnthropic", lambda **kwargs: SimpleNamespace(**kwargs))
+    monkeypatch.setattr(ats_subgraph, "build_chat_model", lambda **kwargs: SimpleNamespace(**kwargs))
 
     def _fake_create_agent(**kwargs):
         called.update(kwargs)
@@ -99,9 +119,9 @@ def test_build_ats_agent_returns_compiled_like_object(monkeypatch, tmp_path) -> 
     assert called["tools"] == ats_subgraph.ATS_TOOLS
 
 
-def test_fetch_candidates_for_position_returns_evaluated_rows(monkeypatch, tmp_path) -> None:
+def test_fetch_candidates_for_position_returns_evaluated_rows(monkeypatch) -> None:
     ats_subgraph = _import_ats_subgraph_or_skip()
-    _setup_ats_data(monkeypatch, tmp_path)
+    _setup_ats_data()
     result = invoke_tool(
         ats_subgraph.fetch_candidates_for_position,
         position_id="pos-techcorp-spe",
@@ -111,9 +131,9 @@ def test_fetch_candidates_for_position_returns_evaluated_rows(monkeypatch, tmp_p
     assert {row["candidate_id"] for row in result} == {"cand-alice-chen", "cand-bob-martinez"}
 
 
-def test_score_candidate_applies_weighted_formula(monkeypatch, tmp_path) -> None:
+def test_score_candidate_applies_weighted_formula(monkeypatch) -> None:
     ats_subgraph = _import_ats_subgraph_or_skip()
-    _setup_ats_data(monkeypatch, tmp_path)
+    _setup_ats_data()
     result = invoke_tool(
         ats_subgraph.score_candidate,
         candidate_id="cand-alice-chen",
@@ -126,9 +146,9 @@ def test_score_candidate_applies_weighted_formula(monkeypatch, tmp_path) -> None
     assert result["breakdown"]["technical"]["weighted"] == 3.2
 
 
-def test_rank_candidates_orders_descending(monkeypatch, tmp_path) -> None:
+def test_rank_candidates_orders_descending(monkeypatch) -> None:
     ats_subgraph = _import_ats_subgraph_or_skip()
-    _setup_ats_data(monkeypatch, tmp_path)
+    _setup_ats_data()
     ranked = invoke_tool(
         ats_subgraph.rank_candidates,
         scores=[
@@ -141,9 +161,9 @@ def test_rank_candidates_orders_descending(monkeypatch, tmp_path) -> None:
     assert ranked[1]["rank"] == 2
 
 
-def test_generate_ats_report_contains_recommendation(monkeypatch, tmp_path) -> None:
+def test_generate_ats_report_contains_recommendation(monkeypatch) -> None:
     ats_subgraph = _import_ats_subgraph_or_skip()
-    _setup_ats_data(monkeypatch, tmp_path)
+    _setup_ats_data()
     report = invoke_tool(
         ats_subgraph.generate_ats_report,
         position_id="pos-techcorp-spe",
@@ -157,9 +177,9 @@ def test_generate_ats_report_contains_recommendation(monkeypatch, tmp_path) -> N
     assert "Top candidate: **Alice Chen**" in report
 
 
-def test_trigger_ats_ranking_returns_report(monkeypatch, tmp_path) -> None:
+def test_trigger_ats_ranking_returns_report(monkeypatch) -> None:
     workflow = _import_workflow_or_skip()
-    _setup_ats_data(monkeypatch, tmp_path)
+    _setup_ats_data()
 
     class _FakeATSAgent:
         def invoke(self, *_args, **_kwargs):

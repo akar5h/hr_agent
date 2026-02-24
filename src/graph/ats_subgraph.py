@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any, Dict, List
 
-from langchain.agents import create_agent
-from langchain_anthropic import ChatAnthropic
+from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
 
 from src.database.db import get_db
+from src.llm import build_chat_model
 from src.prompts.ats import build_ats_system_prompt
 from src.tools._compat import tool
 
@@ -66,7 +65,7 @@ def fetch_candidates_for_position(position_id: str, client_id: str) -> List[Dict
                 e.overall_score
             FROM evaluations e
             JOIN candidates c ON c.id = e.candidate_id
-            WHERE e.position_id = ? AND e.client_id = ?
+            WHERE e.position_id = %s AND e.client_id = %s
             """,
             (position_id, client_id),
         ).fetchall()
@@ -108,7 +107,7 @@ def score_candidate(
                 e.communication_score
             FROM evaluations e
             JOIN candidates c ON c.id = e.candidate_id
-            WHERE e.candidate_id = ? AND e.position_id = ? AND e.client_id = ?
+            WHERE e.candidate_id = %s AND e.position_id = %s AND e.client_id = %s
             ORDER BY e.evaluated_at DESC
             LIMIT 1
             """,
@@ -158,7 +157,7 @@ def generate_ats_report(position_id: str, client_id: str, ranked_candidates: Lis
     """Generate a formatted ATS ranking report in markdown."""
     with get_db() as conn:
         position_row = conn.execute(
-            "SELECT title FROM positions WHERE id = ? AND client_id = ?",
+            "SELECT title FROM positions WHERE id = %s AND client_id = %s",
             (position_id, client_id),
         ).fetchone()
 
@@ -206,11 +205,7 @@ ATS_TOOLS = [
 
 def build_ats_agent(client_id: str, position_id: str, rubric: Dict[str, Any]):
     """Build ATS sub-agent for position-level ranking."""
-    model = ChatAnthropic(
-        model="claude-sonnet-4-6",
-        temperature=0,
-        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
-    )
+    model = build_chat_model(temperature=0)
 
     system_prompt = build_ats_system_prompt(
         client_id=client_id,
@@ -218,9 +213,8 @@ def build_ats_agent(client_id: str, position_id: str, rubric: Dict[str, Any]):
         rubric=rubric,
     )
 
-    return create_agent(
+    return create_react_agent(
         model=model,
         tools=ATS_TOOLS,
-        system_prompt=system_prompt,
+        prompt=system_prompt,
     )
-

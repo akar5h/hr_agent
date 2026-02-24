@@ -297,7 +297,7 @@ pip install -r requirements.txt
 
 # Create .env from example
 cp .env.example .env
-# Edit .env: add ANTHROPIC_API_KEY and TAVILY_API_KEY
+# Edit .env: add OPENROUTER_API_KEY and TAVILY_API_KEY
 
 # Initialize and seed database
 python -c "from src.database.seed import run_seed; run_seed()"
@@ -310,7 +310,7 @@ streamlit run app.py
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Yes | Claude API key for the LLM |
+| `OPENROUTER_API_KEY` | Yes | OpenRouter API key for the LLM |
 | `TAVILY_API_KEY` | Yes | Tavily API key for web search tool |
 
 ## 7. Intentional Vulnerabilities in UI

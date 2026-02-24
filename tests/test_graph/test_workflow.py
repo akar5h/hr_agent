@@ -29,8 +29,8 @@ def test_build_agent_returns_compiled_graph_like_object(monkeypatch) -> None:
     workflow = _import_workflow_or_skip()
     called = {}
 
-    monkeypatch.setattr(workflow, "ChatAnthropic", lambda **kwargs: SimpleNamespace(**kwargs))
-    monkeypatch.setattr(workflow, "MemorySaver", lambda: "memory-saver")
+    monkeypatch.setattr(workflow, "build_chat_model", lambda **kwargs: SimpleNamespace(**kwargs))
+    monkeypatch.setattr(workflow, "get_checkpointer", lambda: "postgres-checkpointer")
 
     def _fake_create_agent(**kwargs):
         called.update(kwargs)
@@ -43,13 +43,13 @@ def test_build_agent_returns_compiled_graph_like_object(monkeypatch) -> None:
     assert hasattr(agent, "stream")
     assert "system_prompt" in called
     assert "prompt" not in called
-    assert called["checkpointer"] == "memory-saver"
+    assert called["checkpointer"] == "postgres-checkpointer"
 
 
 def test_build_agent_uses_all_tools() -> None:
     workflow = _import_workflow_or_skip()
-    assert len(ALL_TOOLS) == 10
-    assert len(workflow.AGENT_TOOLS) == 11
+    assert len(ALL_TOOLS) == 14
+    assert len(workflow.AGENT_TOOLS) == 15
 
 
 def test_system_prompt_includes_client_id_and_session_id() -> None:

@@ -22,11 +22,10 @@ def deduplicate_candidate(email: str, name: str) -> dict:
 
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id AS candidate_id, name FROM candidates WHERE email = ?",
+            "SELECT id AS candidate_id, name FROM candidates WHERE email = %s",
             (email,),
         ).fetchone()
 
     if row:
         return {"exists": True, "candidate_id": row["candidate_id"], "name": row["name"]}
     return {"exists": False}
-

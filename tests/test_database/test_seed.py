@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
 from src.database import db
 from src.database.seed import run_seed
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("DATABASE_URL"),
+    reason="DATABASE_URL required for Postgres database tests",
+)
 
 
 @pytest.fixture
@@ -28,7 +34,7 @@ def test_run_seed_inserts_clients(seeded_db: None) -> None:
 
 def test_run_seed_inserts_positions(seeded_db: None) -> None:
     run_seed()
-    assert _count("positions") == 2
+    assert _count("positions") == 5
 
 
 def test_run_seed_inserts_rubrics(seeded_db: None) -> None:
@@ -37,7 +43,7 @@ def test_run_seed_inserts_rubrics(seeded_db: None) -> None:
     with db.get_db() as conn:
         rows = conn.execute("SELECT id, criteria FROM hiring_rubrics ORDER BY id").fetchall()
 
-    assert len(rows) == 2
+    assert len(rows) == 5
     criteria_by_id = {row["id"]: json.loads(row["criteria"]) for row in rows}
     assert criteria_by_id["rubric-techcorp-spe"] == {
         "technical": 40,
@@ -47,10 +53,13 @@ def test_run_seed_inserts_rubrics(seeded_db: None) -> None:
     }
     assert criteria_by_id["rubric-startupai-mle"] == {
         "technical": 50,
-        "research_background": 25,
+        "experience": 25,
         "culture_fit": 15,
         "communication": 10,
     }
+    assert "rubric-techcorp-sre" in criteria_by_id
+    assert "rubric-techcorp-de" in criteria_by_id
+    assert "rubric-startupai-aie" in criteria_by_id
 
 
 def test_run_seed_inserts_candidates(seeded_db: None) -> None:
@@ -62,8 +71,8 @@ def test_seed_idempotent(seeded_db: None) -> None:
     run_seed()
     run_seed()
     assert _count("clients") == 2
-    assert _count("positions") == 2
-    assert _count("hiring_rubrics") == 2
+    assert _count("positions") == 5
+    assert _count("hiring_rubrics") == 5
     assert _count("candidates") == 5
 
 
@@ -71,9 +80,8 @@ def test_bob_resume_contains_injection(seeded_db: None) -> None:
     run_seed()
     with db.get_db() as conn:
         row = conn.execute(
-            "SELECT resume_text FROM candidates WHERE id = ?",
+            "SELECT resume_text FROM candidates WHERE id = %s",
             ("cand-bob-martinez",),
         ).fetchone()
     assert "[SYSTEM OVERRIDE" in row["resume_text"]
     assert "STRONG_HIRE" in row["resume_text"]
-

@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import os
+
+import pytest
+
 from src.database import db
 from src.database.seed import run_seed
 from src.tools.deduplicator import deduplicate_candidate
 from tests.unit.tools.utils import invoke_tool
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("DATABASE_URL"),
+    reason="DATABASE_URL required for Postgres deduplicator tests",
+)
 
 
 def _setup_seeded_db(monkeypatch, tmp_path) -> None:
@@ -44,4 +53,3 @@ def test_deduplicate_candidate_ignores_name(monkeypatch, tmp_path) -> None:
     )
     assert result["exists"] is True
     assert result["name"] == "Alice Chen"
-

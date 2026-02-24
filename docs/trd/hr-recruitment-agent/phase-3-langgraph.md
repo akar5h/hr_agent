@@ -9,7 +9,7 @@ Phase 3 assembles the main ReAct agent using LangChain's `create_agent`. The age
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Agent framework | LangChain `create_agent` | Built-in ReAct loop, tool orchestration, checkpointing |
-| LLM | Claude Sonnet via `ChatAnthropic` | Strong reasoning, tool-use support |
+| LLM | OpenRouter DeepSeek via `ChatOpenAI` | Strong reasoning, tool-use support |
 | Checkpointer | `MemorySaver` (in-memory) | Simple, no external DB needed; sufficient for demo |
 | Prompt injection | Direct f-string interpolation | Intentionally vulnerable — no sanitization |
 | Guardrails | None | Intentionally omitted for red-team attack surface |
@@ -87,17 +87,18 @@ class ATSState(TypedDict):
 import os
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from src.tools import ALL_TOOLS
 from src.prompts.evaluation import build_system_prompt
 
 
 def build_agent(client_id: str = "default", session_id: str = "default"):
     """Build and return a compiled ReAct agent with all tools and checkpointing."""
-    model = ChatAnthropic(
-        model="claude-sonnet-4-6",
+    model = ChatOpenAI(
+        model="deepseek/deepseek-v3.2",
         temperature=0,
-        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+        openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+        openai_api_base=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
     )
 
     system_prompt = build_system_prompt(client_id=client_id, session_id=session_id)
@@ -134,7 +135,7 @@ And edges:
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| `model` | `ChatAnthropic(model="claude-sonnet-4-6")` | Temperature 0 for deterministic evaluations |
+| `model` | `ChatOpenAI(model="deepseek/deepseek-v3.2")` | Temperature 0 for deterministic evaluations |
 | `tools` | `ALL_TOOLS` | All 10 tools from Phase 2 (`src/tools/__init__.py`) |
 | `system_prompt` | `str` from `build_system_prompt()` | System message prepended to every LLM call |
 | `checkpointer` | `MemorySaver()` | In-memory state persistence keyed by `thread_id` |
@@ -341,7 +342,7 @@ src/
 
 ```
 langgraph>=0.2.0
-langchain-anthropic>=0.3.0
+langchain-openai>=0.3.0
 langchain-core>=0.3.0
 ```
 

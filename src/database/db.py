@@ -1,27 +1,45 @@
-"""SQLite connection management for the HR recruitment agent."""
+"""PostgreSQL connection and checkpoint management for the HR recruitment agent."""
 
 from __future__ import annotations
 
+import atexit
 import os
-import sqlite3
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Generator
+from contextlib import ExitStack, contextmanager
+from typing import Generator, Optional
 
-DATABASE_PATH = os.getenv("DATABASE_PATH", "data/hr_agent.db")
+from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg import Connection
+from psycopg.rows import dict_row
+
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+# Backwards-compatible alias retained for older tests and callers.
+DATABASE_PATH = DATABASE_URL
+_CHECKPOINTER_STACK: Optional[ExitStack] = None
+_CHECKPOINTER: Optional[PostgresSaver] = None
+
+
+def _normalize_database_url(url: str) -> str:
+    """Normalize SQLAlchemy-style postgres URLs to psycopg-compatible format."""
+    normalized = url.strip()
+    if normalized.startswith("postgresql+psycopg2://"):
+        return "postgresql://" + normalized[len("postgresql+psycopg2://") :]
+    if normalized.startswith("postgresql+psycopg://"):
+        return "postgresql://" + normalized[len("postgresql+psycopg://") :]
+    return normalized
+
+
+def _resolve_database_url() -> str:
+    # Prefer live environment values, then module-level compatibility aliases.
+    url = os.getenv("DATABASE_URL", "") or DATABASE_URL or DATABASE_PATH
+    if not url:
+        raise RuntimeError("DATABASE_URL is not set")
+    return _normalize_database_url(url)
 
 
 @contextmanager
-def get_db() -> Generator[sqlite3.Connection, None, None]:
-    """Yield a SQLite connection configured for this project."""
-    db_path = Path(DATABASE_PATH)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-
+def get_db() -> Generator[Connection, None, None]:
+    """Yield a PostgreSQL connection configured for dict-like row access."""
+    conn = Connection.connect(_resolve_database_url(), autocommit=False, row_factory=dict_row)
     try:
         yield conn
         conn.commit()
@@ -32,7 +50,37 @@ def get_db() -> Generator[sqlite3.Connection, None, None]:
         conn.close()
 
 
-def get_db_path() -> str:
-    """Return the resolved absolute path to the SQLite database file."""
-    return str(Path(DATABASE_PATH).resolve())
+def _close_checkpointer() -> None:
+    global _CHECKPOINTER_STACK, _CHECKPOINTER
+    if _CHECKPOINTER_STACK is not None:
+        _CHECKPOINTER_STACK.close()
+        _CHECKPOINTER_STACK = None
+        _CHECKPOINTER = None
 
+
+def reset_checkpointer() -> None:
+    """Force-close and reset the singleton checkpointer."""
+    _close_checkpointer()
+
+
+def get_checkpointer() -> PostgresSaver:
+    """Return a singleton Postgres-backed LangGraph checkpointer."""
+    global _CHECKPOINTER_STACK, _CHECKPOINTER
+    if _CHECKPOINTER is None:
+        stack = ExitStack()
+        saver = stack.enter_context(PostgresSaver.from_conn_string(_resolve_database_url()))
+        saver.setup()
+        _CHECKPOINTER = saver
+        _CHECKPOINTER_STACK = stack
+        atexit.register(_close_checkpointer)
+    return _CHECKPOINTER
+
+
+def get_db_url() -> str:
+    """Return the active database URL."""
+    return _resolve_database_url()
+
+
+def get_db_path() -> str:
+    """Backwards-compatible alias for existing callers."""
+    return get_db_url()

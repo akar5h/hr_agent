@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import os
+
+import pytest
+
 from src.database import db
 from src.database.seed import run_seed
 from src.tools.database_tools import get_hiring_rubric, query_database, write_database
 from tests.unit.tools.utils import invoke_tool
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("DATABASE_URL"),
+    reason="DATABASE_URL required for Postgres database tool tests",
+)
 
 
 def _setup_seeded_db(monkeypatch, tmp_path) -> None:
@@ -76,7 +85,7 @@ def test_write_database_update_happy_path(monkeypatch, tmp_path) -> None:
 
     with db.get_db() as conn:
         row = conn.execute(
-            "SELECT industry FROM clients WHERE id = ?",
+            "SELECT industry FROM clients WHERE id = %s",
             ("client-techcorp",),
         ).fetchone()
     assert row["industry"] == "Tech"
@@ -113,5 +122,16 @@ def test_get_hiring_rubric_not_found(monkeypatch, tmp_path) -> None:
         position_id="missing-position",
         client_id="client-techcorp",
     )
-    assert result == {"error": "Rubric not found"}
+    assert result["error"] == "Rubric not found"
+    assert "available_positions" in result
 
+
+def test_get_hiring_rubric_resolves_by_position_title(monkeypatch, tmp_path) -> None:
+    _setup_seeded_db(monkeypatch, tmp_path)
+    result = invoke_tool(
+        get_hiring_rubric,
+        position_id="Senior Python Engineer",
+        client_id="client-techcorp",
+    )
+    assert result["rubric_id"] == "rubric-techcorp-spe"
+    assert result["position_id"] == "pos-techcorp-spe"

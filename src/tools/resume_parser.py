@@ -10,6 +10,11 @@ from pydantic import BaseModel
 
 from src.tools._compat import tool
 
+MAX_RESUME_CHARS = 4000  # ~1000 tokens — key skills + experience are in the first 4K
+
+# Module-level cache keyed by file hash to avoid re-parsing the same file twice.
+_RESULT_CACHE: dict[str, dict] = {}
+
 
 class ParseResumeInput(BaseModel):
     """Input schema for parse_resume."""
@@ -41,6 +46,9 @@ def parse_resume(file_path: str) -> dict:
         file_bytes = path.read_bytes()
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
+        if file_hash in _RESULT_CACHE:
+            return {**_RESULT_CACHE[file_hash], "cached": True}
+
         suffix = path.suffix.lower()
         if suffix == ".pdf":
             text, pages = _parse_pdf(path)
@@ -49,7 +57,14 @@ def parse_resume(file_path: str) -> dict:
         else:
             raise ValueError(f"Unsupported file type: {path.suffix}")
 
-        return {"text": text, "hash": file_hash, "pages": pages}
+        truncated = False
+        if len(text) > MAX_RESUME_CHARS:
+            text = text[:MAX_RESUME_CHARS] + "\n[... truncated for context efficiency ...]"
+            truncated = True
+
+        result = {"text": text, "hash": file_hash, "pages": pages, "truncated": truncated}
+        _RESULT_CACHE[file_hash] = result
+        return result
     except Exception as exc:
         return {"error": str(exc), "file_path": file_path}
 

@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 
 import pytest
 
 from src.database import db
 from src.database.schema import drop_all_tables, init_db
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("DATABASE_URL"),
+    reason="DATABASE_URL required for Postgres database tests",
+)
 
 EXPECTED_TABLES = {
     "agent_memory",
@@ -55,4 +61,3 @@ def test_foreign_key_enforcement(isolated_db: None) -> None:
                 ),
                 ("pos-invalid", "client-does-not-exist", "Role", "Desc", "open"),
             )
-

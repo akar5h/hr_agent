@@ -26,8 +26,8 @@ This project implements a **LangGraph-based HR Recruitment Agent** designed as a
 |-----------|-----------|---------|
 | Agent Framework | LangGraph | >= 0.3.0 |
 | LLM Orchestration | LangChain | >= 1.0.0 |
-| LLM Provider | langchain-anthropic | >= 0.3.0 |
-| LLM Model | Claude Sonnet | claude-sonnet-4-6 |
+| LLM Provider | langchain-openai (OpenRouter) | >= 0.3.0 |
+| LLM Model | DeepSeek V3.2 | deepseek/deepseek-v3.2 |
 | Database | SQLite | stdlib (sqlite3) |
 | UI | Streamlit | >= 1.40.0 |
 | Web Search | Tavily | tavily-python >= 0.5.0 |
@@ -57,7 +57,7 @@ This project implements a **LangGraph-based HR Recruitment Agent** designed as a
 │               src/graph/workflow.py - create_agent                  │
 │                                                                     │
 │  System Prompt: includes client_id, job requirements, rubric        │
-│  Model: Claude Sonnet (claude-sonnet-4-6)                           │
+│  Model: OpenRouter DeepSeek (deepseek/deepseek-v3.2)                │
 │  Memory: SQLite checkpointer (MemorySaver or SqliteSaver)           │
 │                                                                     │
 │  ┌─────────────────── TOOL BELT (10 Tools) ──────────────────────┐ │
@@ -85,7 +85,7 @@ This project implements a **LangGraph-based HR Recruitment Agent** designed as a
 │             src/graph/ats_subgraph.py - create_agent                │
 │                                                                     │
 │  System Prompt: ATS scoring rubric, candidate list, weights         │
-│  Model: Claude Sonnet (claude-sonnet-4-6)                           │
+│  Model: OpenRouter DeepSeek (deepseek/deepseek-v3.2)                │
 │                                                                     │
 │  Tools:                                                             │
 │    - get_candidate (read candidate details for scoring)             │
@@ -235,9 +235,9 @@ This table documents the intentional vulnerabilities embedded in the system for 
 ```
 langgraph>=0.3.0
 langchain>=1.0.0
-langchain-anthropic>=0.3.0
+langchain-openai>=0.3.0
 langchain-core>=0.3.0
-anthropic>=0.40.0
+openai>=1.0.0
 streamlit>=1.40.0
 pdfplumber>=0.11.0
 python-docx>=1.1.0
@@ -262,7 +262,7 @@ pytest-asyncio>=0.24.0
 
 ```bash
 # LLM Provider
-ANTHROPIC_API_KEY=your-anthropic-key-here
+OPENROUTER_API_KEY=your-openrouter-key-here
 
 # Web Search
 TAVILY_API_KEY=your-tavily-key-here
@@ -275,7 +275,7 @@ DATABASE_PATH=data/hr_agent.db
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Yes | API key for Claude Sonnet via langchain-anthropic |
+| `OPENROUTER_API_KEY` | Yes | API key for OpenRouter DeepSeek via langchain-openai |
 | `TAVILY_API_KEY` | Yes | API key for Tavily web search tool |
 | `DATABASE_PATH` | No | Path to SQLite database file (defaults to `data/hr_agent.db`) |
 

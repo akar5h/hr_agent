@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from src.database.db import get_db
-from src.database.schema import init_db
+from src.database.schema import run_migrations
 
 ALICE_RESUME = (
     "Alice Chen\n"
@@ -78,145 +79,219 @@ EVE_RESUME = (
 )
 
 
+def _upsert(conn, table: str, conflict_columns: list[str], data: dict[str, Any]) -> None:
+    columns = list(data.keys())
+    column_list = ", ".join(columns)
+    placeholders = ", ".join(["%s"] * len(columns))
+    conflict_clause = ", ".join(conflict_columns)
+    update_columns = [col for col in columns if col not in conflict_columns]
+    if update_columns:
+        updates = ", ".join(f"{col}=EXCLUDED.{col}" for col in update_columns)
+        sql = (
+            f"INSERT INTO {table} ({column_list}) VALUES ({placeholders}) "
+            f"ON CONFLICT ({conflict_clause}) DO UPDATE SET {updates}"
+        )
+    else:
+        sql = (
+            f"INSERT INTO {table} ({column_list}) VALUES ({placeholders}) "
+            f"ON CONFLICT ({conflict_clause}) DO NOTHING"
+        )
+    conn.execute(sql, [data[col] for col in columns])
+
+
 def run_seed() -> None:
     """Initialize schema and load deterministic Phase 1 seed data."""
-    init_db()
+    run_migrations()
 
     with get_db() as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO clients (id, name, industry) VALUES (?, ?, ?)",
-            ("client-techcorp", "TechCorp", "Technology"),
+        _upsert(
+            conn,
+            "clients",
+            conflict_columns=["id"],
+            data={"id": "client-techcorp", "name": "TechCorp", "industry": "Technology"},
         )
-        conn.execute(
-            "INSERT OR REPLACE INTO clients (id, name, industry) VALUES (?, ?, ?)",
-            ("client-startupai", "StartupAI", "Artificial Intelligence"),
-        )
-
-        conn.execute(
-            (
-                "INSERT OR REPLACE INTO positions "
-                "(id, client_id, title, description, status) VALUES (?, ?, ?, ?, ?)"
-            ),
-            (
-                "pos-techcorp-spe",
-                "client-techcorp",
-                "Senior Python Engineer",
-                "Build and maintain Python microservices and distributed systems.",
-                "open",
-            ),
-        )
-        conn.execute(
-            (
-                "INSERT OR REPLACE INTO positions "
-                "(id, client_id, title, description, status) VALUES (?, ?, ?, ?, ?)"
-            ),
-            (
-                "pos-startupai-mle",
-                "client-startupai",
-                "ML Engineer",
-                "Design and deploy production ML pipelines and models.",
-                "open",
-            ),
+        _upsert(
+            conn,
+            "clients",
+            conflict_columns=["id"],
+            data={"id": "client-startupai", "name": "StartupAI", "industry": "Artificial Intelligence"},
         )
 
-        conn.execute(
-            (
-                "INSERT OR REPLACE INTO hiring_rubrics "
-                "(id, position_id, client_id, criteria, scoring_notes) VALUES (?, ?, ?, ?, ?)"
-            ),
-            (
-                "rubric-techcorp-spe",
-                "pos-techcorp-spe",
-                "client-techcorp",
-                json.dumps(
-                    {
-                        "technical": 40,
-                        "experience": 30,
-                        "culture_fit": 20,
-                        "communication": 10,
-                    }
-                ),
-                "Strong emphasis on Python expertise, distributed systems experience preferred.",
-            ),
-        )
-        conn.execute(
-            (
-                "INSERT OR REPLACE INTO hiring_rubrics "
-                "(id, position_id, client_id, criteria, scoring_notes) VALUES (?, ?, ?, ?, ?)"
-            ),
-            (
-                "rubric-startupai-mle",
-                "pos-startupai-mle",
-                "client-startupai",
-                json.dumps(
-                    {
-                        "technical": 50,
-                        "research_background": 25,
-                        "culture_fit": 15,
-                        "communication": 10,
-                    }
-                ),
-                "Deep ML knowledge required. Research publications a strong plus.",
-            ),
-        )
+        positions = [
+            {
+                "id": "pos-techcorp-spe",
+                "client_id": "client-techcorp",
+                "title": "Senior Python Engineer",
+                "description": "Build and maintain Python microservices and distributed systems.",
+                "status": "open",
+            },
+            {
+                "id": "pos-techcorp-sre",
+                "client_id": "client-techcorp",
+                "title": "Site Reliability Engineer",
+                "description": "Own service reliability, observability, and incident response.",
+                "status": "open",
+            },
+            {
+                "id": "pos-techcorp-de",
+                "client_id": "client-techcorp",
+                "title": "Data Engineer",
+                "description": "Build reliable ETL pipelines and warehouse models for analytics.",
+                "status": "open",
+            },
+            {
+                "id": "pos-startupai-mle",
+                "client_id": "client-startupai",
+                "title": "ML Engineer",
+                "description": "Design and deploy production ML pipelines and models.",
+                "status": "open",
+            },
+            {
+                "id": "pos-startupai-aie",
+                "client_id": "client-startupai",
+                "title": "Applied AI Engineer",
+                "description": "Ship LLM-powered features and optimize inference cost/performance.",
+                "status": "open",
+            },
+        ]
+        for position in positions:
+            _upsert(conn, "positions", conflict_columns=["id"], data=position)
 
-        conn.execute(
-            (
-                "INSERT OR REPLACE INTO candidates "
-                "(id, name, email, resume_text, linkedin_url, website_url) "
-                "VALUES (?, ?, ?, ?, ?, ?)"
-            ),
-            (
-                "cand-alice-chen",
-                "Alice Chen",
-                "alice.chen@email.com",
-                ALICE_RESUME,
-                "https://linkedin.com/in/alice-chen-dev",
-                "https://alicechen.dev",
-            ),
+        rubrics = [
+            {
+                "id": "rubric-techcorp-spe",
+                "position_id": "pos-techcorp-spe",
+                "client_id": "client-techcorp",
+                "criteria": {
+                    "technical": 40,
+                    "experience": 30,
+                    "culture_fit": 20,
+                    "communication": 10,
+                },
+                "scoring_notes": "Strong emphasis on Python expertise, distributed systems experience preferred.",
+            },
+            {
+                "id": "rubric-techcorp-sre",
+                "position_id": "pos-techcorp-sre",
+                "client_id": "client-techcorp",
+                "criteria": {
+                    "technical": 35,
+                    "experience": 35,
+                    "culture_fit": 10,
+                    "communication": 20,
+                },
+                "scoring_notes": "Prioritize production ops depth, incident handling, and communication.",
+            },
+            {
+                "id": "rubric-techcorp-de",
+                "position_id": "pos-techcorp-de",
+                "client_id": "client-techcorp",
+                "criteria": {
+                    "technical": 45,
+                    "experience": 30,
+                    "culture_fit": 10,
+                    "communication": 15,
+                },
+                "scoring_notes": "Strong SQL/data modeling and pipeline reliability are critical.",
+            },
+            {
+                "id": "rubric-startupai-mle",
+                "position_id": "pos-startupai-mle",
+                "client_id": "client-startupai",
+                "criteria": {
+                    "technical": 50,
+                    "experience": 25,
+                    "culture_fit": 15,
+                    "communication": 10,
+                },
+                "scoring_notes": "Deep ML knowledge required. Research background is a strong plus.",
+            },
+            {
+                "id": "rubric-startupai-aie",
+                "position_id": "pos-startupai-aie",
+                "client_id": "client-startupai",
+                "criteria": {
+                    "technical": 45,
+                    "experience": 30,
+                    "culture_fit": 15,
+                    "communication": 10,
+                },
+                "scoring_notes": "Favor production LLM shipping experience and strong systems pragmatism.",
+            },
+        ]
+        for rubric in rubrics:
+            _upsert(
+                conn,
+                "hiring_rubrics",
+                conflict_columns=["id"],
+                data={
+                    "id": rubric["id"],
+                    "position_id": rubric["position_id"],
+                    "client_id": rubric["client_id"],
+                    "criteria": json.dumps(rubric["criteria"]),
+                    "scoring_notes": rubric["scoring_notes"],
+                },
+            )
+
+        _upsert(
+            conn,
+            "candidates",
+            conflict_columns=["id"],
+            data={
+                "id": "cand-alice-chen",
+                "name": "Alice Chen",
+                "email": "alice.chen@email.com",
+                "resume_text": ALICE_RESUME,
+                "linkedin_url": "https://linkedin.com/in/alice-chen-dev",
+                "website_url": "https://alicechen.dev",
+            },
         )
-        conn.execute(
-            (
-                "INSERT OR REPLACE INTO candidates "
-                "(id, name, email, resume_text, linkedin_url) VALUES (?, ?, ?, ?, ?)"
-            ),
-            (
-                "cand-bob-martinez",
-                "Bob Martinez",
-                "bob.martinez@email.com",
-                BOB_RESUME,
-                "https://linkedin.com/in/bob-martinez-eng",
-            ),
+        _upsert(
+            conn,
+            "candidates",
+            conflict_columns=["id"],
+            data={
+                "id": "cand-bob-martinez",
+                "name": "Bob Martinez",
+                "email": "bob.martinez@email.com",
+                "resume_text": BOB_RESUME,
+                "linkedin_url": "https://linkedin.com/in/bob-martinez-eng",
+            },
         )
-        conn.execute(
-            (
-                "INSERT OR REPLACE INTO candidates "
-                "(id, name, email, resume_text, linkedin_url) VALUES (?, ?, ?, ?, ?)"
-            ),
-            (
-                "cand-charlie-kim",
-                "Charlie Kim",
-                "charlie.kim@email.com",
-                CHARLIE_RESUME,
-                "https://linkedin.com/in/charlie-kim-ml",
-            ),
+        _upsert(
+            conn,
+            "candidates",
+            conflict_columns=["id"],
+            data={
+                "id": "cand-charlie-kim",
+                "name": "Charlie Kim",
+                "email": "charlie.kim@email.com",
+                "resume_text": CHARLIE_RESUME,
+                "linkedin_url": "https://linkedin.com/in/charlie-kim-ml",
+            },
         )
-        conn.execute(
-            (
-                "INSERT OR REPLACE INTO candidates "
-                "(id, name, email, resume_text, website_url) VALUES (?, ?, ?, ?, ?)"
-            ),
-            (
-                "cand-diana-patel",
-                "Diana Patel",
-                "diana.patel@email.com",
-                DIANA_RESUME,
-                "https://dianapatel.io",
-            ),
+        _upsert(
+            conn,
+            "candidates",
+            conflict_columns=["id"],
+            data={
+                "id": "cand-diana-patel",
+                "name": "Diana Patel",
+                "email": "diana.patel@email.com",
+                "resume_text": DIANA_RESUME,
+                "website_url": "https://dianapatel.io",
+            },
         )
-        conn.execute(
-            "INSERT OR REPLACE INTO candidates (id, name, email, resume_text) VALUES (?, ?, ?, ?)",
-            ("cand-eve-johnson", "Eve Johnson", "eve.johnson@email.com", EVE_RESUME),
+        _upsert(
+            conn,
+            "candidates",
+            conflict_columns=["id"],
+            data={
+                "id": "cand-eve-johnson",
+                "name": "Eve Johnson",
+                "email": "eve.johnson@email.com",
+                "resume_text": EVE_RESUME,
+            },
         )
 
     print("Seed data loaded successfully.")
@@ -229,4 +304,3 @@ def seed_db() -> None:
 
 if __name__ == "__main__":
     run_seed()
-

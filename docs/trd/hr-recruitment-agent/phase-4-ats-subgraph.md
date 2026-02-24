@@ -181,7 +181,7 @@ def generate_ats_report(position_id: str, client_id: str, ranked_candidates: lis
 
 ```python
 from langchain.agents import create_agent
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from src.prompts.ats import build_ats_system_prompt
 
 ATS_TOOLS = [
@@ -192,10 +192,11 @@ ATS_TOOLS = [
 ]
 
 def build_ats_agent(client_id: str, position_id: str, rubric: dict):
-    model = ChatAnthropic(
-        model="claude-sonnet-4-6",
+    model = ChatOpenAI(
+        model="deepseek/deepseek-v3.2",
         temperature=0,
-        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+        openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+        openai_api_base=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
     )
 
     system_prompt = build_ats_system_prompt(
@@ -214,7 +215,7 @@ def build_ats_agent(client_id: str, position_id: str, rubric: dict):
 
 **Key Design Decisions:**
 - **No checkpointer** — ATS agent is stateless; it runs to completion and returns. No need for memory persistence.
-- **Separate model instance** — ATS agent gets its own `ChatAnthropic` instance with `temperature=0` for deterministic scoring.
+- **Separate model instance** — ATS agent gets its own `ChatOpenAI` instance with `temperature=0` for deterministic scoring.
 - **Rubric in system prompt** — The full rubric JSON is embedded in the system prompt via `build_ats_system_prompt` (intentional vulnerability).
 
 ---
