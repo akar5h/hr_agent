@@ -5,10 +5,13 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
+from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
 from src.database.db import get_checkpointer, get_db
+from src.guardrails.rate_limiter import record_tool_call
+from src.guardrails.sanitizer import ENABLE_HARDENING, sanitize
 from src.graph.ats_subgraph import build_ats_agent
 from src.llm import build_chat_model
 from src.prompts.evaluation import build_system_prompt
@@ -86,21 +89,64 @@ def trigger_ats_ranking(position_id: str, client_id: str) -> str:
 AGENT_TOOLS = [*ALL_TOOLS, trigger_ats_ranking]
 
 
+def _sanitize_payload(payload: Any) -> Any:
+    if isinstance(payload, str):
+        return sanitize(payload)
+    if isinstance(payload, dict):
+        return {key: _sanitize_payload(value) for key, value in payload.items()}
+    if isinstance(payload, list):
+        return [_sanitize_payload(item) for item in payload]
+    return payload
+
+
+def _sanitize_result(value: Any) -> Any:
+    if isinstance(value, str):
+        return sanitize(value)
+    if isinstance(value, dict):
+        return {key: _sanitize_result(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_result(item) for item in value]
+    return value
+
+
+def _harden_tool(original_tool: Any, session_id: str) -> Any:
+    def wrapped_call(**kwargs: Any) -> Any:
+        record_tool_call(session_id)
+        sanitized_input = _sanitize_payload(kwargs)
+        result = original_tool.invoke(sanitized_input)
+        return _sanitize_result(result)
+
+    return StructuredTool.from_function(
+        func=wrapped_call,
+        name=getattr(original_tool, "name", "wrapped_tool"),
+        description=getattr(original_tool, "description", ""),
+        args_schema=getattr(original_tool, "args_schema", None),
+        infer_schema=False,
+        return_direct=getattr(original_tool, "return_direct", False),
+    )
+
+
 def build_agent(client_id: str = "default", session_id: str = "default"):
     """Build and return a compiled ReAct agent with all tools and checkpointing."""
     model = build_chat_model(temperature=0)
+    from src.guardrails.nemo_integration import wrap_model_with_guardrails
+    model = wrap_model_with_guardrails(model, session_client_id=client_id)
 
-    prior_memories = _load_client_memories(client_id=client_id)
+    prior_memories = _load_client_memories(
+        client_id=client_id,
+        query_context=f"session:{session_id}",
+    )
     system_prompt = build_system_prompt(
         client_id=client_id,
         session_id=session_id,
         prior_memories=prior_memories,
     )
     checkpointer = get_checkpointer()
+    tools_to_use = [_harden_tool(tool, session_id) for tool in AGENT_TOOLS] if ENABLE_HARDENING else AGENT_TOOLS
 
-    return create_react_agent(
+    return create_agent(
         model=model,
-        tools=AGENT_TOOLS,
-        prompt=system_prompt,
+        tools=tools_to_use,
+        system_prompt=system_prompt,
         checkpointer=checkpointer,
     )

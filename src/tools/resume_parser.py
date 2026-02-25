@@ -8,12 +8,11 @@ from typing import Tuple
 
 from pydantic import BaseModel
 
+from src.cache.tool_cache import ToolCache
 from src.tools._compat import tool
 
 MAX_RESUME_CHARS = 4000  # ~1000 tokens — key skills + experience are in the first 4K
-
-# Module-level cache keyed by file hash to avoid re-parsing the same file twice.
-_RESULT_CACHE: dict[str, dict] = {}
+_CACHE = ToolCache()
 
 
 class ParseResumeInput(BaseModel):
@@ -45,9 +44,12 @@ def parse_resume(file_path: str) -> dict:
         path = Path(file_path)
         file_bytes = path.read_bytes()
         file_hash = hashlib.sha256(file_bytes).hexdigest()
-
-        if file_hash in _RESULT_CACHE:
-            return {**_RESULT_CACHE[file_hash], "cached": True}
+        cache_key = {"file_hash": file_hash}
+        cached = _CACHE.get("parse_resume", cache_key)
+        if cached is not None:
+            if isinstance(cached, dict):
+                return {**cached, "cached": True}
+            return {"text": str(cached), "cached": True}
 
         suffix = path.suffix.lower()
         if suffix == ".pdf":
@@ -63,8 +65,7 @@ def parse_resume(file_path: str) -> dict:
             truncated = True
 
         result = {"text": text, "hash": file_hash, "pages": pages, "truncated": truncated}
-        _RESULT_CACHE[file_hash] = result
+        _CACHE.set("parse_resume", cache_key, result, ttl_seconds=24 * 3600)
         return result
     except Exception as exc:
         return {"error": str(exc), "file_path": file_path}
-

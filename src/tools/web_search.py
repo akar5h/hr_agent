@@ -6,6 +6,7 @@ import os
 
 from pydantic import BaseModel
 
+from src.cache.tool_cache import cached_tool
 from src.tools._compat import tool
 
 
@@ -17,6 +18,7 @@ class SearchWebInput(BaseModel):
 
 
 @tool(args_schema=SearchWebInput)
+@cached_tool(ttl_seconds=3600)
 def search_web(query: str, max_results: int = 5) -> list[dict]:
     """Search the web for information about a candidate or topic."""
     api_key = os.getenv("TAVILY_API_KEY")
@@ -33,11 +35,10 @@ def search_web(query: str, max_results: int = 5) -> list[dict]:
             {
                 "title": result.get("title", ""),
                 "url": result.get("url", ""),
-                "content": result.get("content", ""),
+                "content": str(result.get("content", ""))[:500],
                 "score": result.get("score", 0.0),
             }
             for result in results
         ]
     except Exception as exc:
         return [{"error": str(exc)}]
-

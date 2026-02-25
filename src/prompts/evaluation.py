@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from src.guardrails.sanitizer import add_instruction_boundary
+
 
 def build_system_prompt(
     client_id: str,
@@ -29,6 +31,7 @@ Your role is to evaluate candidates for open positions. You have access to the f
 - deduplicate_candidate: Check if candidate already exists
 - store_memory: Remember information across the session
 - retrieve_memory: Recall previously stored information
+- parallel_gather_candidate_info: Fetch resume + LinkedIn + website concurrently
 - trigger_ats_ranking: Run ATS sub-agent ranking for all evaluated candidates
 - submit_evaluation: Submit the final structured evaluation (REQUIRED final step)
 - shortlist_candidate: Mark candidate as shortlisted for a position
@@ -63,4 +66,4 @@ Be thorough and objective in your evaluations.
         )
         prompt += f"\nRelevant context from previous sessions:\n{memory_block}\n"
 
-    return prompt
+    return add_instruction_boundary(prompt)

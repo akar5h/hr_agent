@@ -64,8 +64,20 @@ def reset_checkpointer() -> None:
 
 
 def get_checkpointer() -> PostgresSaver:
-    """Return a singleton Postgres-backed LangGraph checkpointer."""
+    """Return a singleton Postgres-backed LangGraph checkpointer.
+
+    If the underlying connection has been dropped (e.g. Neon idle timeout),
+    the singleton is transparently recreated.
+    """
     global _CHECKPOINTER_STACK, _CHECKPOINTER
+    # Verify existing connection is still alive
+    if _CHECKPOINTER is not None:
+        try:
+            _CHECKPOINTER.conn.execute("SELECT 1")
+        except Exception:
+            # Connection dead (SSL closed, idle timeout, etc.) — reset
+            _close_checkpointer()
+
     if _CHECKPOINTER is None:
         stack = ExitStack()
         saver = stack.enter_context(PostgresSaver.from_conn_string(_resolve_database_url()))

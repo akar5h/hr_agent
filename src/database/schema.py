@@ -109,7 +109,12 @@ CREATE TABLE IF NOT EXISTS agent_memory (
     client_id TEXT NOT NULL,
     memory_key TEXT NOT NULL,
     memory_value TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    memory_type TEXT NOT NULL DEFAULT 'episodic',
+    expires_at TIMESTAMPTZ,
+    embedding TEXT,
+    access_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 """
 

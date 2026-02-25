@@ -13,10 +13,41 @@ Usage (in workflow.py or app.py):
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 MAX_MESSAGES_BEFORE_COMPRESS = 20
 KEEP_RECENT_MESSAGES = 8
+TOKEN_COMPRESS_THRESHOLD = int(os.getenv("TOKEN_COMPRESS_THRESHOLD", "32000"))
+TOKEN_KEEP_BUDGET = 8000
+
+
+def count_tokens_approximate(text: str) -> int:
+    """Count tokens using tiktoken if installed, else char/4 heuristic."""
+    try:
+        import tiktoken
+
+        encoder = tiktoken.get_encoding("cl100k_base")
+        return len(encoder.encode(text))
+    except Exception:
+        return max(1, len(text) // 4)
+
+
+def count_messages_tokens(messages: list[Any]) -> int:
+    """Estimate total tokens across message contents."""
+    total = 0
+    for message in messages:
+        content = getattr(message, "content", "")
+        if isinstance(content, list):
+            blocks: list[str] = []
+            for block in content:
+                if isinstance(block, dict):
+                    blocks.append(str(block.get("text", "")))
+                else:
+                    blocks.append(str(block))
+            content = " ".join(blocks)
+        total += count_tokens_approximate(str(content))
+    return total
 
 
 def compress_messages(messages: list[Any], model: Any) -> list[Any]:
@@ -61,3 +92,11 @@ def compress_messages(messages: list[Any], model: Any) -> list[Any]:
 
     summary_msg = SystemMessage(content=f"[Compressed history]: {summary_text}")
     return system_messages + [summary_msg] + keep
+
+
+def compress_messages_token_aware(messages: list[Any], model: Any) -> list[Any]:
+    """Compress only when estimated token count crosses threshold."""
+    estimated = count_messages_tokens(messages)
+    if estimated < TOKEN_COMPRESS_THRESHOLD:
+        return messages
+    return compress_messages(messages, model)

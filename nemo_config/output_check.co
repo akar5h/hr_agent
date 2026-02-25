@@ -1,0 +1,19 @@
+# Output Check Rails
+# Applies self-check LLM evaluation and regex-based blocked term detection
+# to all outgoing bot messages.
+
+define flow self check output
+  $allowed = execute self_check_output
+  if not $allowed
+    bot inform cannot share
+    stop
+
+define flow check output blocked terms
+  $output = $bot_message
+  $is_blocked = execute check_output_blocked_terms(text=$output)
+  if $is_blocked
+    bot inform cannot share
+    stop
+
+define bot inform cannot share
+  "I cannot share that information. It may contain sensitive data. Please ask about candidate evaluations or hiring processes instead."

@@ -9,12 +9,14 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from src.cache.tool_cache import ToolCache
 from src.database.db import get_db
 from src.database.schema import CREATE_TABLES_SQL
 from src.llm import DEFAULT_OPENROUTER_MODEL, build_chat_model
 from src.tools._compat import tool
 
 SQL_GENERATOR_MODEL = os.getenv("OPENROUTER_SQL_MODEL", DEFAULT_OPENROUTER_MODEL)
+_CACHE = ToolCache()
 
 
 class QueryDatabaseInput(BaseModel):
@@ -66,6 +68,15 @@ def _clean_sql(sql: str) -> str:
 
 
 def _generate_sql(query_intent: str, client_id: str) -> str:
+    cache_key = {
+        "query_intent": query_intent.strip(),
+        "client_id": client_id,
+        "model": SQL_GENERATOR_MODEL,
+    }
+    cached = _CACHE.get("generate_sql", cache_key)
+    if isinstance(cached, str) and cached.strip():
+        return cached
+
     model = build_chat_model(temperature=0, model=SQL_GENERATOR_MODEL)
     system_prompt = (
         "You are a SQL generator. Generate only a SELECT query for PostgreSQL.\n"
@@ -79,7 +90,9 @@ def _generate_sql(query_intent: str, client_id: str) -> str:
             {"role": "user", "content": query_intent},
         ]
     )
-    return _clean_sql(_extract_text_from_model_response(response))
+    generated = _clean_sql(_extract_text_from_model_response(response))
+    _CACHE.set("generate_sql", cache_key, generated, ttl_seconds=900)
+    return generated
 
 
 @tool(args_schema=QueryDatabaseInput)
@@ -164,13 +177,27 @@ def submit_evaluation(
     """
     try:
         with get_db() as conn:
-            # Look up the candidate by name + client_id
+            # Look up the candidate: try name+client first, then name-only fallback
             candidate_row = conn.execute(
                 "SELECT id FROM candidates WHERE LOWER(name) = LOWER(%s) AND client_id = %s LIMIT 1",
                 (candidate_name, client_id),
             ).fetchone()
 
-            candidate_id = candidate_row["id"] if candidate_row else f"cand-{candidate_name.lower().replace(' ', '-')}"
+            if not candidate_row:
+                candidate_row = conn.execute(
+                    "SELECT id FROM candidates WHERE LOWER(name) = LOWER(%s) LIMIT 1",
+                    (candidate_name,),
+                ).fetchone()
+
+            if candidate_row:
+                candidate_id = candidate_row["id"]
+            else:
+                # Auto-create the candidate so the FK constraint is satisfied
+                candidate_id = f"cand-{candidate_name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:6]}"
+                conn.execute(
+                    "INSERT INTO candidates (id, name, client_id) VALUES (%s, %s, %s)",
+                    (candidate_id, candidate_name, client_id),
+                )
 
             eval_id = str(uuid.uuid4())
             conn.execute(
@@ -192,6 +219,7 @@ def submit_evaluation(
         return {
             "success": True,
             "evaluation_id": eval_id,
+            "candidate_id": candidate_id,
             "candidate_name": candidate_name,
             "overall_score": overall_score,
             "recommendation": recommendation,

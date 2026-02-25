@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from pydantic import BaseModel
 
 from src.database.db import get_db
@@ -213,8 +213,8 @@ def build_ats_agent(client_id: str, position_id: str, rubric: Dict[str, Any]):
         rubric=rubric,
     )
 
-    return create_react_agent(
+    return create_agent(
         model=model,
         tools=ATS_TOOLS,
-        prompt=system_prompt,
+        system_prompt=system_prompt,
     )

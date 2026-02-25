@@ -54,6 +54,12 @@ run_migrations()
 print("Migrations up to date.")
 PY
 
+echo "Running pre-flight health check"
+if ! ".venv/bin/python" -m src.health; then
+  echo "Health check failed. Aborting startup."
+  exit 1
+fi
+
 CMD=(".venv/bin/python" "-m" "streamlit" "run" "app.py")
 if [[ ${#APP_ARGS[@]} -gt 0 ]]; then
   CMD+=("${APP_ARGS[@]}")

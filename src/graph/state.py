@@ -16,6 +16,8 @@ class RecruiterState(TypedDict):
     position_id: Optional[str]
     current_candidate_id: Optional[str]
     evaluation_complete: bool
+    token_budget_used: int
+    last_compressed_at: Optional[str]
 
 
 class ATSState(TypedDict):

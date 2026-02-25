@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import os
 import re
 import uuid
@@ -16,9 +15,11 @@ os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
 
 import streamlit as st
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage
+from src.observability.logging import get_logger
+from src.observability.tracing import configure_tracing
 
 load_dotenv()
+configure_tracing()
 
 UPLOADS_DIR = Path("data/uploads")
 ENTRY_LOG_FILE = Path("data/upload_entries.jsonl")
@@ -28,35 +29,12 @@ DEFAULT_POSITION_BY_CLIENT = {
     "client-techcorp": "pos-techcorp-spe",
     "client-startupai": "pos-startupai-mle",
 }
+COST_PER_M_IN = float(os.getenv("TOKEN_COST_PER_M_IN", "0.27"))
+COST_PER_M_OUT = float(os.getenv("TOKEN_COST_PER_M_OUT", "1.10"))
+MAX_TOOL_CALLS_PER_TURN = int(os.getenv("MAX_TOOL_CALLS_PER_TURN", "20"))
 
 
-def _configure_logger() -> logging.Logger:
-    logger = logging.getLogger("hr_ai.app")
-    if logger.handlers:
-        return logger
-
-    level_name = os.getenv("APP_LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
-    logger.setLevel(level)
-    logger.propagate = False
-
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-
-    log_file = os.getenv("APP_LOG_FILE", "logs/backend.log").strip()
-    if log_file:
-        path = Path(log_file)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(path)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-
-    return logger
-
-
-LOGGER = _configure_logger()
+LOGGER = get_logger("hr_ai.app")
 
 
 def _load_upload_entries() -> list[dict[str, str]]:
@@ -112,12 +90,17 @@ def _ensure_db_seeded(log_events: bool = False) -> None:
         return
 
     from src.database.db import get_db
+    from src.memory.ttl import expire_old_memories
     from src.database.schema import run_migrations
     from src.database.seed import run_seed
 
     if log_events:
         _append_agent_log("agent_init: applying alembic migrations")
     run_migrations()
+    with get_db() as conn:
+        deleted = expire_old_memories(conn)
+        if deleted and log_events:
+            _append_agent_log(f"memory_ttl_cleanup: expired={deleted}")
     with get_db() as conn:
         rubric_row = conn.execute("SELECT COUNT(*) AS count FROM hiring_rubrics").fetchone()
         position_row = conn.execute("SELECT COUNT(*) AS count FROM positions").fetchone()
@@ -201,11 +184,31 @@ def _load_session_messages(session_id: str) -> list[dict[str, str]]:
 
 
 def _open_session(session_id: str, client_id: str, position_id: str = "") -> None:
+    # Defer widget-bound state updates to the next rerun so Streamlit doesn't
+    # reject mutations after widgets are already instantiated in this run.
+    st.session_state.pending_session_open = {
+        "session_id": session_id,
+        "client_id": client_id,
+        "position_id": position_id,
+    }
+
+
+def _apply_pending_session_open() -> None:
+    pending = st.session_state.pop("pending_session_open", None)
+    if not pending:
+        return
+
+    session_id = str(pending.get("session_id", "") or st.session_state.session_id)
+    client_id = str(pending.get("client_id", "") or st.session_state.client_id)
+    position_id = str(pending.get("position_id", "")).strip()
+
     st.session_state.session_id = session_id
     st.session_state.client_id = client_id
-    st.session_state.position_input = position_id or st.session_state.get("position_input", "")
+    if position_id:
+        st.session_state.position_input = position_id
     st.session_state.messages = _load_session_messages(session_id)
     st.session_state.agent = None
+    st.session_state.token_budget_used = 0
     _append_agent_log(f"session_opened: session_id={session_id} client_id={client_id}")
 
 
@@ -231,6 +234,16 @@ def init_session_state() -> None:
         st.session_state.db_ready = False
     if "query_history" not in st.session_state:
         st.session_state.query_history = _load_query_history()
+    if "total_tokens_in" not in st.session_state:
+        st.session_state.total_tokens_in = 0
+    if "total_tokens_out" not in st.session_state:
+        st.session_state.total_tokens_out = 0
+    if "token_budget_used" not in st.session_state:
+        st.session_state.token_budget_used = 0
+    if "compression_model" not in st.session_state:
+        st.session_state.compression_model = None
+    if "pending_session_open" not in st.session_state:
+        st.session_state.pending_session_open = None
 
 
 def _extract_text(content: Any) -> str:
@@ -288,6 +301,81 @@ def _extract_latest_ai_text(messages: list[Any]) -> str:
         if not tool_calls:
             return text
     return ""
+
+
+def _message_usage_metadata(message: Any) -> dict[str, int]:
+    usage = getattr(message, "usage_metadata", None) or {}
+    if not isinstance(usage, dict):
+        return {"input_tokens": 0, "output_tokens": 0}
+    return {
+        "input_tokens": int(usage.get("input_tokens", 0) or 0),
+        "output_tokens": int(usage.get("output_tokens", 0) or 0),
+    }
+
+
+def _usage_message_key(message: Any, usage: dict[str, int]) -> str:
+    message_id = getattr(message, "id", None)
+    if message_id:
+        return str(message_id)
+    text = _extract_text(getattr(message, "content", ""))
+    return f"{_message_type(message)}:{usage['input_tokens']}:{usage['output_tokens']}:{text[:120]}"
+
+
+def _accumulate_token_usage(messages: list[Any], seen: set[str]) -> None:
+    for message in messages:
+        usage = _message_usage_metadata(message)
+        if not usage["input_tokens"] and not usage["output_tokens"]:
+            continue
+        key = _usage_message_key(message, usage)
+        if key in seen:
+            continue
+        seen.add(key)
+        st.session_state.total_tokens_in += usage["input_tokens"]
+        st.session_state.total_tokens_out += usage["output_tokens"]
+
+
+def _estimated_cost_usd(tokens_in: int, tokens_out: int) -> float:
+    return (tokens_in / 1_000_000 * COST_PER_M_IN) + (tokens_out / 1_000_000 * COST_PER_M_OUT)
+
+
+def _get_compression_model():
+    if "compression_model" not in st.session_state or st.session_state.compression_model is None:
+        from src.llm import build_chat_model
+
+        st.session_state.compression_model = build_chat_model(temperature=0)
+    return st.session_state.compression_model
+
+
+def _maybe_compress(agent: Any, config: dict[str, Any]) -> int:
+    """Run token-aware compression on current thread state and return token count."""
+    try:
+        from src.graph.compression import compress_messages_token_aware, count_messages_tokens
+
+        state_snapshot = agent.get_state(config)
+        values = getattr(state_snapshot, "values", {}) or {}
+        messages = values.get("messages", [])
+        compressed = compress_messages_token_aware(messages, _get_compression_model())
+
+        token_count = count_messages_tokens(compressed)
+
+        if compressed is not messages:
+            agent.update_state(
+                config,
+                {
+                    "messages": compressed,
+                    "token_budget_used": token_count,
+                    "last_compressed_at": datetime.now().isoformat(timespec="seconds"),
+                },
+            )
+            LOGGER.info(
+                "context_compressed: "
+                f"session={st.session_state.session_id} original={len(messages)} new={len(compressed)}"
+            )
+
+        return token_count
+    except Exception as exc:
+        LOGGER.info(f"context_compress_skipped: {exc}")
+        return int(st.session_state.get("token_budget_used", 0))
 
 
 # Patterns that indicate the model produced a preamble/thinking text instead of a final answer.
@@ -374,9 +462,11 @@ def get_or_create_agent(force_refresh: bool = False):
 
     if st.session_state.agent is None:
         from src.graph.workflow import build_agent
+        from src.guardrails.rate_limiter import reset_session
 
         with st.spinner("Initializing agent..."):
             _ensure_db_seeded(log_events=True)
+            reset_session(st.session_state.session_id)
             _append_agent_log(
                 f"agent_init: building agent client={st.session_state.client_id} session={st.session_state.session_id}"
             )
@@ -390,16 +480,27 @@ def get_or_create_agent(force_refresh: bool = False):
 
 def render_evaluation_report(content: str) -> None:
     """Render score metrics when score-like patterns are present."""
+    # Match "dimension ... N/10" — the N/10 pattern is the actual score,
+    # not percentage weights like "40% weight" that appear earlier on the line.
     score_pattern = re.compile(
-        r"(technical|experience|culture|communication).*?(\d+\.?\d*)\s*(?:/\s*10)?",
+        r"(technical|experience|culture|communication).*?(\d+\.?\d*)\s*/\s*10",
         re.IGNORECASE,
     )
     scores = score_pattern.findall(content)
 
     if scores:
+        # Deduplicate: keep only the first match per dimension
+        seen: set[str] = set()
+        unique_scores: list[tuple[str, str]] = []
+        for dimension, score in scores:
+            key = dimension.lower()
+            if key not in seen:
+                seen.add(key)
+                unique_scores.append((dimension, score))
+
         st.markdown("### Evaluation Scores")
-        columns = st.columns(len(scores))
-        for idx, (dimension, score) in enumerate(scores):
+        columns = st.columns(len(unique_scores))
+        for idx, (dimension, score) in enumerate(unique_scores):
             score_value = float(score)
             columns[idx].metric(
                 label=dimension.title(),
@@ -412,7 +513,7 @@ def render_evaluation_report(content: str) -> None:
 
 
 def _render_assistant_content(content: str) -> None:
-    if re.search(r"(technical|experience|culture|communication).*?\d+\.?\d*", content, re.IGNORECASE):
+    if re.search(r"(technical|experience|culture|communication).*?\d+\.?\d*\s*/\s*10", content, re.IGNORECASE):
         render_evaluation_report(content)
     else:
         st.markdown(content)
@@ -420,6 +521,8 @@ def _render_assistant_content(content: str) -> None:
 
 def process_user_message(user_input: str) -> None:
     """Send a user message to the agent and stream its response."""
+    from langchain_core.messages import HumanMessage
+
     st.session_state.messages.append({"role": "user", "content": user_input})
     history_item = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
@@ -437,22 +540,28 @@ def process_user_message(user_input: str) -> None:
         placeholder = st.empty()
         full_response = ""
         last_messages: list[Any] = []
+        usage_seen: set[str] = set()
 
         for attempt in (1, 2):
             status_widget = None
+            tool_call_count = 0
+            budget_exhausted = False
             try:
                 agent = get_or_create_agent(force_refresh=False)
+                thread_config = {
+                    "configurable": {"thread_id": st.session_state.session_id},
+                    "recursion_limit": 50,
+                }
                 if st.session_state.show_agent_progress:
                     status_widget = st.status("Agent running...", expanded=True)
 
+                token_count = _maybe_compress(agent, thread_config)
+                st.session_state.token_budget_used = token_count
                 _append_agent_log(f"user_input: {user_input[:120]} (attempt={attempt})")
                 previous_chunk_key = None
                 for chunk in agent.stream(
                     {"messages": [HumanMessage(content=user_input)]},
-                    config={
-                        "configurable": {"thread_id": st.session_state.session_id},
-                        "recursion_limit": 25,
-                    },
+                    config=thread_config,
                     stream_mode="values",
                 ):
                     if "messages" not in chunk or not chunk["messages"]:
@@ -460,6 +569,7 @@ def process_user_message(user_input: str) -> None:
 
                     messages = chunk["messages"]
                     last_messages = messages
+                    _accumulate_token_usage(messages, usage_seen)
                     latest_ai_text = _extract_latest_ai_text(messages)
                     if latest_ai_text and latest_ai_text != full_response:
                         full_response = latest_ai_text
@@ -477,13 +587,25 @@ def process_user_message(user_input: str) -> None:
                     previous_chunk_key = chunk_key
 
                     if msg_type == "ai" and tool_call_names:
-                        log_line = _append_agent_log(f"tool_call: {', '.join(tool_call_names)}")
+                        tool_call_count += len(tool_call_names)
+                        log_line = _append_agent_log(
+                            f"tool_call: {', '.join(tool_call_names)} "
+                            f"({tool_call_count}/{MAX_TOOL_CALLS_PER_TURN})"
+                        )
                         if status_widget is not None:
                             status_widget.update(
                                 label=f"Running tool: {', '.join(tool_call_names)}",
                                 state="running",
                             )
                             status_widget.write(log_line)
+
+                        if tool_call_count >= MAX_TOOL_CALLS_PER_TURN:
+                            budget_exhausted = True
+                            _append_agent_log(
+                                f"tool_budget_exhausted: {tool_call_count} calls used "
+                                f"(limit {MAX_TOOL_CALLS_PER_TURN})"
+                            )
+                            break
                         continue
 
                     if msg_type == "tool":
@@ -507,6 +629,27 @@ def process_user_message(user_input: str) -> None:
                 if not full_response:
                     full_response = "No response generated."
 
+                # Tool budget exhausted — return what we have with a note
+                if budget_exhausted:
+                    salvaged = _extract_latest_ai_text(last_messages) if last_messages else ""
+                    if salvaged:
+                        full_response = (
+                            salvaged
+                            + f"\n\n---\n*Note: The agent used all {MAX_TOOL_CALLS_PER_TURN} "
+                            "tool calls for this turn. The response above may be incomplete.*"
+                        )
+                    else:
+                        full_response = (
+                            f"The agent used all {MAX_TOOL_CALLS_PER_TURN} tool calls "
+                            "without producing a final response. "
+                            "Check the agent logs for details."
+                        )
+                    placeholder.markdown("")
+                    _render_assistant_content(full_response)
+                    if status_widget is not None:
+                        status_widget.update(label="Tool budget exhausted", state="error")
+                    break
+
                 # If the model emitted only a thinking preamble and stopped, retry once.
                 if attempt == 1 and _looks_incomplete(full_response):
                     _append_agent_log(
@@ -527,6 +670,32 @@ def process_user_message(user_input: str) -> None:
                 break
             except Exception as exc:
                 error_text = str(exc)
+
+                # Recursion limit: salvage whatever the agent produced so far
+                if "recursion limit" in error_text.lower() or "GRAPH_RECURSION_LIMIT" in error_text:
+                    _append_agent_log(
+                        f"warning: recursion limit reached after {len(last_messages)} messages; "
+                        "returning partial response"
+                    )
+                    salvaged = _extract_latest_ai_text(last_messages) if last_messages else ""
+                    if salvaged:
+                        full_response = (
+                            salvaged
+                            + "\n\n---\n*Note: The agent reached its step limit. "
+                            "The evaluation above may be incomplete.*"
+                        )
+                        placeholder.markdown("")
+                        _render_assistant_content(full_response)
+                    else:
+                        full_response = (
+                            "The agent reached its step limit before producing a final response. "
+                            "This usually means a tool call kept failing. Check the agent logs for details."
+                        )
+                        placeholder.warning(full_response)
+                    if status_widget is not None:
+                        status_widget.update(label="Agent hit step limit", state="error")
+                    break
+
                 if attempt == 1 and "connection is closed" in error_text.lower():
                     _append_agent_log(
                         "warning: checkpointer connection closed; resetting and retrying once"
@@ -666,7 +835,7 @@ def _render_positions_window() -> None:
         "You are currently scoped to one client in the sidebar. "
         "TechCorp has 3 open positions, StartupAI has 2 open positions."
     )
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    st.dataframe(rows, width="stretch", hide_index=True)
 
 
 def _render_sidebar() -> None:
@@ -690,6 +859,15 @@ def _render_sidebar() -> None:
             st.session_state.session_id = str(uuid.uuid4())
             st.session_state.agent_logs = []
             st.session_state.position_input = ""
+            st.session_state.token_budget_used = 0
+
+        st.markdown("---")
+        budget_used = int(st.session_state.get("token_budget_used", 0))
+        budget_pct = min(100, int(budget_used / 640))
+        st.markdown(f"**Context:** {budget_used:,} / 64,000 tokens")
+        st.progress(budget_pct / 100)
+        if budget_pct >= 80:
+            st.warning(f"Context {budget_pct}% full. Compression triggers at ~50%.")
 
         st.markdown("---")
         st.subheader("Candidate Input")
@@ -736,7 +914,7 @@ def _render_sidebar() -> None:
             st.caption("Position IDs and titles are loaded from seeded database records.")
 
         st.markdown("---")
-        if st.button("Start Evaluation", type="primary", use_container_width=True):
+        if st.button("Start Evaluation", type="primary", width="stretch"):
             _record_submission_entry(
                 resume_path=resume_path,
                 linkedin_url=linkedin_url,
@@ -751,7 +929,7 @@ def _render_sidebar() -> None:
             )
 
         st.checkbox("Show live agent progress", key="show_agent_progress")
-        if st.button("Clear agent logs", use_container_width=True):
+        if st.button("Clear agent logs", width="stretch"):
             st.session_state.agent_logs = []
 
         with st.expander("Agent Logs", expanded=False):
@@ -764,6 +942,11 @@ def _render_sidebar() -> None:
         st.markdown("---")
         st.caption(f"Session: {st.session_state.session_id[:8]}...")
         st.caption(f"Client: {st.session_state.client_id}")
+        tokens_in = int(st.session_state.get("total_tokens_in", 0))
+        tokens_out = int(st.session_state.get("total_tokens_out", 0))
+        st.markdown("**Token Usage**")
+        st.caption(f"{tokens_in:,} in / {tokens_out:,} out")
+        st.caption(f"Est. cost: ${_estimated_cost_usd(tokens_in, tokens_out):.4f}")
         if not os.getenv("OPENROUTER_API_KEY"):
             st.warning("OPENROUTER_API_KEY is not set.")
         st.caption(f"Model: {os.getenv('OPENROUTER_MODEL', 'deepseek/deepseek-v3.2')}")
@@ -774,6 +957,7 @@ def _render_sidebar() -> None:
 def main() -> None:
     st.set_page_config(page_title="HR Recruitment Agent", page_icon=":briefcase:", layout="wide")
     init_session_state()
+    _apply_pending_session_open()
     _render_sidebar()
 
     col_chat, col_side = st.columns([1.9, 1.1], gap="large")

@@ -4,6 +4,7 @@ from src.tools.database_tools import get_hiring_rubric, query_database, submit_e
 from src.tools.deduplicator import deduplicate_candidate
 from src.tools.linkedin_fetcher import fetch_linkedin
 from src.tools.memory_tools import retrieve_memory, store_memory
+from src.tools.parallel_gather import parallel_gather_candidate_info
 from src.tools.resume_parser import parse_resume
 from src.tools.web_search import search_web
 from src.tools.website_scraper import scrape_website
@@ -20,6 +21,7 @@ ALL_TOOLS = [
     deduplicate_candidate,
     store_memory,
     retrieve_memory,
+    parallel_gather_candidate_info,
     submit_evaluation,
     shortlist_candidate,
     reject_candidate,

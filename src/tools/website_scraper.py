@@ -9,6 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
+from src.cache.tool_cache import cached_tool
 from src.tools._compat import tool
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -17,6 +18,7 @@ WEBSITE_FIXTURE_MAP = {
     "dianapatel.io": "diana-patel.html",
     "alicechen.dev": "alice-chen.html",
 }
+MAX_WEBSITE_CHARS = 2000
 
 
 class ScrapeWebsiteInput(BaseModel):
@@ -41,10 +43,19 @@ def _load_html(url: str) -> str:
     return response.text
 
 
+def _validate_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
 @tool(args_schema=ScrapeWebsiteInput)
+@cached_tool(ttl_seconds=1800)
 def scrape_website(url: str) -> dict:
     """Scrape a personal website and return extracted text content."""
     try:
+        if not _validate_url(url):
+            return {"error": f"Invalid URL: {url}", "url": url}
+
         html = _load_html(url)
         soup = BeautifulSoup(html, "html.parser")
 
@@ -59,6 +70,8 @@ def scrape_website(url: str) -> dict:
 
         paragraphs = [p.get_text(strip=True) for p in soup.find_all("p")]
         about_text = "\n".join(text for text in paragraphs if text)
+        if len(about_text) > MAX_WEBSITE_CHARS:
+            about_text = about_text[:MAX_WEBSITE_CHARS] + "\n[... truncated for context efficiency ...]"
 
         return {
             "title": title,
@@ -68,4 +81,3 @@ def scrape_website(url: str) -> dict:
         }
     except Exception as exc:
         return {"error": str(exc), "url": url}
-

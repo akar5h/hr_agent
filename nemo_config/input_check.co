@@ -1,0 +1,16 @@
+# Input Check Rails
+# Applies self-check LLM evaluation and regex-based blocked term detection
+# to all incoming user messages.
+
+define flow self check input
+  $allowed = execute self_check_input
+  if not $allowed
+    bot refuse to respond
+    stop
+
+define flow check blocked terms
+  $input = $user_message
+  $is_blocked = execute check_input_blocked_terms(text=$input)
+  if $is_blocked
+    bot refuse to respond
+    stop

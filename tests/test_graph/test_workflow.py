@@ -48,8 +48,8 @@ def test_build_agent_returns_compiled_graph_like_object(monkeypatch) -> None:
 
 def test_build_agent_uses_all_tools() -> None:
     workflow = _import_workflow_or_skip()
-    assert len(ALL_TOOLS) == 14
-    assert len(workflow.AGENT_TOOLS) == 15
+    assert len(ALL_TOOLS) == 15
+    assert len(workflow.AGENT_TOOLS) == 16
 
 
 def test_system_prompt_includes_client_id_and_session_id() -> None:
@@ -60,4 +60,4 @@ def test_system_prompt_includes_client_id_and_session_id() -> None:
 
 def test_trigger_ats_ranking_is_callable_tool() -> None:
     workflow = _import_workflow_or_skip()
-    assert callable(workflow.trigger_ats_ranking)
+    assert hasattr(workflow.trigger_ats_ranking, "invoke")

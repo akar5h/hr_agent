@@ -1,0 +1,59 @@
+# NeMo Guardrails configuration for HR Recruitment Agent
+# Uses DeepSeek v3.2 via OpenRouter (OpenAI-compatible API)
+
+models:
+  - type: main
+    engine: openai
+    model: deepseek/deepseek-v3.2
+    parameters:
+      api_key_env_var: OPENROUTER_API_KEY
+      api_base: https://openrouter.ai/api/v1
+      temperature: 0.0
+      max_tokens: 512
+
+instructions:
+  - type: general
+    content: |
+      You are a guardrails safety checker for an HR recruitment assistant.
+      Your role is to evaluate whether user inputs and bot outputs comply
+      with HR recruitment policies. Respond only with Yes or No.
+
+rails:
+  input:
+    flows:
+      - self check input
+      - check blocked terms
+  output:
+    flows:
+      - self check output
+      - check output blocked terms
+  dialog:
+    single_call:
+      enabled: false
+    user_messages:
+      embeddings_only: false
+
+# Passthrough mode: allow unmatched intents to flow to the agent.
+# NeMo rails only intervene when a flow explicitly blocks.
+passthrough: true
+
+# Blocked term patterns used by Colang check flows
+custom_data:
+  input_blocked_patterns:
+    - "ignore.*instructions"
+    - "you are now"
+    - "system prompt"
+    - "\\bDAN\\b"
+    - "jailbreak"
+    - "pretend you"
+    - "bypass.*filter"
+    - "act as.*unrestricted"
+  output_blocked_patterns:
+    - "\\d{3}-\\d{2}-\\d{4}"
+    - "SELECT\\s+.*FROM"
+    - "INSERT\\s+INTO"
+    - "DROP\\s+TABLE"
+    - "\\bagent_memory\\b"
+    - "\\bevaluations\\b\\.\\*"
+    - "\\bcandidates\\b\\.\\*"
+    - "internal_score"
