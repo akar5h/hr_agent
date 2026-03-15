@@ -13,14 +13,23 @@ GET  /health                          — database + model connectivity check
 POST /sessions                        — create a new isolated agent session
 POST /sessions/{session_id}/chat      — send a chat turn, get response + tool calls
 DELETE /sessions/{session_id}         — dispose session and release checkpointer slot
+POST /sessions/{session_id}/evaluate  — upload resume + candidate info, trigger evaluation
+POST /upload                          — upload a resume file (PDF/DOCX)
+GET  /positions                       — list open positions for a client
+GET  /positions/all                   — all positions with rubrics
+GET  /history/uploads                 — uploaded entry log
+GET  /history/queries                 — chat query history
 """
 
 from __future__ import annotations
 
+import json
 import os
 import time
 import traceback
 import uuid
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -29,9 +38,13 @@ load_dotenv()
 
 os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+UPLOADS_DIR = Path("data/uploads")
+ENTRY_LOG_FILE = Path("data/upload_entries.jsonl")
+QUERY_HISTORY_FILE = Path("data/query_history.jsonl")
 
 app = FastAPI(
     title="HR Recruitment Agent API",
@@ -233,9 +246,23 @@ async def create_session(req: CreateSessionRequest = CreateSessionRequest()) -> 
     summary="Send a chat turn and receive agent response + tool call log",
 )
 async def chat(session_id: str, req: ChatRequest) -> ChatResponse:
+    from src.guardrails.nemo_integration import check_input, check_output
+
     session = _get_session(session_id)
     agent   = session["agent"]
     error: str | None = None
+
+    # NeMo input rail check
+    input_allowed, input_refusal = await check_input(req.message)
+    if not input_allowed:
+        return ChatResponse(
+            session_id=session_id,
+            response=input_refusal or "Request blocked by guardrails.",
+            tool_calls=[],
+            duration_ms=0,
+            budget_exhausted=False,
+            error=None,
+        )
 
     try:
         turn = _run_turn(agent, session_id, req.message)
@@ -255,6 +282,12 @@ async def chat(session_id: str, req: ChatRequest) -> ChatResponse:
         else:
             turn = {"response": "", "tool_calls": [], "budget_exhausted": False, "duration_ms": 0}
             error = traceback.format_exc()
+
+    # NeMo output rail check
+    if turn["response"] and not error:
+        output_allowed, output_replacement = await check_output(turn["response"])
+        if not output_allowed:
+            turn["response"] = output_replacement or "Response blocked by guardrails."
 
     return ChatResponse(
         session_id       = session_id,
@@ -278,3 +311,213 @@ async def delete_session(session_id: str) -> dict[str, bool]:
 @app.get("/sessions", summary="List active session IDs")
 async def list_sessions() -> dict[str, list[str]]:
     return {"session_ids": list(_sessions.keys())}
+
+
+# ---------------------------------------------------------------------------
+# File helpers (mirrors app.py)
+# ---------------------------------------------------------------------------
+
+def _load_jsonl(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        return []
+    entries: list[dict[str, str]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            entries.append({k: str(v) if v is not None else "" for k, v in payload.items()})
+    return entries
+
+
+def _append_jsonl(path: Path, entry: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, ensure_ascii=True) + "\n")
+
+
+def _build_evaluation_prompt(
+    resume_path: str | None,
+    linkedin_url: str,
+    website_url: str,
+    position: str,
+) -> str:
+    parts = ["Please evaluate this candidate."]
+    if resume_path:
+        parts.append(f"Resume file: {resume_path}")
+    if linkedin_url:
+        parts.append(f"LinkedIn: {linkedin_url}")
+    if website_url:
+        parts.append(f"Website: {website_url}")
+    if position:
+        parts.append(f"Position: {position}")
+    return " ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Upload endpoint
+# ---------------------------------------------------------------------------
+
+class UploadResponse(BaseModel):
+    filename: str
+    path: str
+
+
+@app.post("/upload", response_model=UploadResponse, summary="Upload a resume file (PDF/DOCX)")
+async def upload_resume(file: UploadFile = File(...)) -> UploadResponse:
+    if file.filename is None:
+        raise HTTPException(status_code=400, detail="No filename provided.")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in (".pdf", ".docx"):
+        raise HTTPException(status_code=400, detail=f"Unsupported file type '{ext}'. Use PDF or DOCX.")
+
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = UPLOADS_DIR / file.filename
+    content = await file.read()
+    output_path.write_bytes(content)
+    return UploadResponse(filename=file.filename, path=str(output_path.resolve()))
+
+
+# ---------------------------------------------------------------------------
+# Evaluate endpoint (upload + candidate info → auto-chat)
+# ---------------------------------------------------------------------------
+
+class EvaluateRequest(BaseModel):
+    resume_path: str | None = Field(default=None, description="Path to uploaded resume (from /upload)")
+    linkedin_url: str = Field(default="", description="LinkedIn profile URL")
+    website_url: str = Field(default="", description="Personal website URL")
+    position: str = Field(default="", description="Position ID to evaluate against")
+
+
+@app.post(
+    "/sessions/{session_id}/evaluate",
+    response_model=ChatResponse,
+    summary="Trigger a full candidate evaluation",
+)
+async def evaluate(session_id: str, req: EvaluateRequest) -> ChatResponse:
+    session = _get_session(session_id)
+    agent = session["agent"]
+
+    # Log the submission entry
+    entry = {
+        "entry_id": str(uuid.uuid4()),
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "client_id": session["client_id"],
+        "session_id": session_id,
+        "position": req.position.strip(),
+        "resume_path": req.resume_path or "",
+        "resume_file": Path(req.resume_path).name if req.resume_path else "",
+        "linkedin_url": req.linkedin_url.strip(),
+        "website_url": req.website_url.strip(),
+    }
+    _append_jsonl(ENTRY_LOG_FILE, entry)
+
+    # Build prompt and run through the agent
+    prompt = _build_evaluation_prompt(
+        resume_path=req.resume_path,
+        linkedin_url=req.linkedin_url,
+        website_url=req.website_url,
+        position=req.position,
+    )
+
+    error: str | None = None
+    try:
+        turn = _run_turn(agent, session_id, prompt)
+    except Exception as exc:
+        turn = {"response": "", "tool_calls": [], "budget_exhausted": False, "duration_ms": 0}
+        error = traceback.format_exc()
+
+    # Log query history
+    query_entry = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "session_id": session_id,
+        "client_id": session["client_id"],
+        "position_id": req.position,
+        "user_input": prompt,
+        "assistant_output": turn["response"],
+    }
+    _append_jsonl(QUERY_HISTORY_FILE, query_entry)
+
+    return ChatResponse(
+        session_id=session_id,
+        response=turn["response"],
+        tool_calls=[ToolCallLog(**tc) for tc in turn["tool_calls"]],
+        duration_ms=turn["duration_ms"],
+        budget_exhausted=turn["budget_exhausted"],
+        error=error,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Positions endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/positions", summary="List open positions for a client")
+async def list_positions(client_id: str = "client-techcorp") -> dict[str, Any]:
+    from src.database.db import get_db
+
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, title FROM positions WHERE client_id = %s AND status = %s ORDER BY title ASC",
+            (client_id, "open"),
+        ).fetchall()
+    return {
+        "client_id": client_id,
+        "positions": [{"id": str(row["id"]), "title": str(row["title"])} for row in rows],
+    }
+
+
+@app.get("/positions/all", summary="All positions with rubrics")
+async def all_positions_with_rubrics() -> dict[str, Any]:
+    from src.database.db import get_db
+
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                p.client_id,
+                p.id AS position_id,
+                p.title,
+                p.status,
+                hr.id AS rubric_id,
+                hr.criteria
+            FROM positions p
+            LEFT JOIN hiring_rubrics hr
+              ON hr.position_id = p.id
+             AND hr.client_id = p.client_id
+            ORDER BY p.client_id ASC, p.title ASC
+            """
+        ).fetchall()
+
+    results = []
+    for row in rows:
+        results.append({
+            "client_id": str(row["client_id"]),
+            "position_id": str(row["position_id"]),
+            "title": str(row["title"]),
+            "status": str(row["status"]),
+            "rubric_id": str(row["rubric_id"] or ""),
+            "criteria": str(row["criteria"] or ""),
+        })
+    return {"positions": results}
+
+
+# ---------------------------------------------------------------------------
+# History endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/history/uploads", summary="Uploaded entry log")
+async def upload_history() -> dict[str, Any]:
+    entries = _load_jsonl(ENTRY_LOG_FILE)
+    return {"total": len(entries), "entries": entries}
+
+
+@app.get("/history/queries", summary="Chat query history")
+async def query_history() -> dict[str, Any]:
+    entries = _load_jsonl(QUERY_HISTORY_FILE)
+    return {"total": len(entries), "queries": entries}
