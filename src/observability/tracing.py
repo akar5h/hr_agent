@@ -1,87 +1,96 @@
-"""Tracing configuration for LangSmith and Langfuse."""
+"""Unified tracing layer — LangSmith, Langfuse, and Galileo AI.
+
+Each backend is toggled independently via env flags:
+  ENABLE_LANGSMITH=true/false
+  ENABLE_LANGFUSE=true/false
+  ENABLE_GALILEO=true/false
+
+When a backend is enabled AND its credentials are present, a callback
+handler is created and returned by ``get_trace_callbacks()``.
+"""
 
 from __future__ import annotations
 
 import os
-from typing import Optional
+from typing import Any, Optional
+
+from src.observability.logging import get_logger
+
+log = get_logger(__name__)
 
 
-def configure_tracing() -> bool:
-    """Enable tracing backends. Returns True if any backend was configured."""
-    langsmith_ok = _configure_langsmith()
-    langfuse_ok = _configure_langfuse()
-    return langsmith_ok or langfuse_ok
+# ── helpers ────────────────────────────────────────────────────────────
+def _is_enabled(flag_name: str) -> bool:
+    return os.getenv(flag_name, "false").strip().lower() == "true"
 
 
+def _has_key(*env_names: str) -> bool:
+    return all(os.getenv(n, "").strip() for n in env_names)
+
+
+# ── LangSmith ─────────────────────────────────────────────────────────
 def _configure_langsmith() -> bool:
-    """Enable LangSmith tracing if required env vars are present."""
-    if os.getenv("LANGCHAIN_TRACING_V2", "false").lower() != "true":
+    """Enable LangSmith auto-tracing via env vars."""
+    if not _is_enabled("ENABLE_LANGSMITH"):
         return False
-
-    api_key = os.getenv("LANGCHAIN_API_KEY", "").strip()
+    # Support both old (LANGCHAIN_*) and new (LANGSMITH_*) naming
+    api_key = (
+        os.getenv("LANGSMITH_API_KEY", "").strip()
+        or os.getenv("LANGCHAIN_API_KEY", "").strip()
+    )
     if not api_key:
+        log.info("langsmith: skipped (no API key)")
         return False
 
+    # LangSmith auto-instruments when these env vars are set
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ.setdefault("LANGCHAIN_API_KEY", api_key)
     os.environ.setdefault(
         "LANGCHAIN_PROJECT",
-        os.getenv("LANGCHAIN_PROJECT", "hr-recruitment-agent"),
+        os.getenv("LANGSMITH_PROJECT", "hr-recruitment-agent"),
     )
+    os.environ.setdefault(
+        "LANGCHAIN_ENDPOINT",
+        os.getenv("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com"),
+    )
+    log.info("langsmith: enabled (project=%s)", os.environ["LANGCHAIN_PROJECT"])
     return True
 
 
+# ── Langfuse ──────────────────────────────────────────────────────────
 def _configure_langfuse() -> bool:
-    """Check that Langfuse env vars are present.
-
-    Langfuse SDK v4 reads LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, and
-    LANGFUSE_BASE_URL from the environment automatically — no manual
-    client init required.
-    """
-    secret = os.getenv("LANGFUSE_SECRET_KEY", "").strip()
-    public = os.getenv("LANGFUSE_PUBLIC_KEY", "").strip()
-    if not secret or not public:
+    """Verify Langfuse SDK + credentials are available."""
+    if not _is_enabled("ENABLE_LANGFUSE"):
         return False
-
+    if not _has_key("LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY"):
+        log.info("langfuse: skipped (missing keys)")
+        return False
     try:
         from langfuse.langchain import CallbackHandler  # noqa: F401
-
+        log.info("langfuse: enabled (host=%s)", os.getenv("LANGFUSE_BASE_URL", "https://cloud.langfuse.com"))
         return True
     except ImportError:
+        log.warning("langfuse: skipped (package not installed)")
         return False
 
 
-def get_langfuse_handler(
+def _get_langfuse_handler(
     *,
     session_id: Optional[str] = None,
     user_id: Optional[str] = None,
     tags: Optional[list[str]] = None,
     trace_name: Optional[str] = None,
-):
-    """Create a Langfuse CallbackHandler for a single invocation.
-
-    Pass the returned handler via ``config={"callbacks": [handler]}``
-    on any LangChain/LangGraph ``.invoke()`` / ``.stream()`` call.
-
-    Args:
-        session_id: Groups traces into a conversation/session.
-        user_id: Associates the trace with a specific user.
-        tags: Filterable tags (e.g. ["hr-agent", "evaluation"]).
-        trace_name: Descriptive name shown in the Langfuse UI.
-
-    Returns:
-        A ``CallbackHandler`` instance, or ``None`` if Langfuse is not
-        configured (missing env vars or package not installed).
-    """
-    secret = os.getenv("LANGFUSE_SECRET_KEY", "").strip()
-    public = os.getenv("LANGFUSE_PUBLIC_KEY", "").strip()
-    if not secret or not public:
+) -> Any | None:
+    if not _is_enabled("ENABLE_LANGFUSE"):
         return None
-
+    if not _has_key("LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY"):
+        return None
     try:
         from langfuse.langchain import CallbackHandler
     except ImportError:
         return None
 
-    kwargs: dict = {}
+    kwargs: dict[str, Any] = {}
     if session_id is not None:
         kwargs["session_id"] = session_id
     if user_id is not None:
@@ -90,5 +99,103 @@ def get_langfuse_handler(
         kwargs["tags"] = tags
     if trace_name is not None:
         kwargs["trace_name"] = trace_name
-
     return CallbackHandler(**kwargs)
+
+
+# ── Galileo AI ────────────────────────────────────────────────────────
+def _configure_galileo() -> bool:
+    """Verify Galileo SDK + credentials are available."""
+    if not _is_enabled("ENABLE_GALILEO"):
+        return False
+    if not _has_key("GALILEO_API_KEY"):
+        log.info("galileo: skipped (no API key)")
+        return False
+    try:
+        from galileo import galileo_context  # noqa: F401
+        project = os.getenv("GALILEO_PROJECT", "hr-recruitment-agent")
+        log_stream = os.getenv("GALILEO_LOG_STREAM", "default")
+        galileo_context.init(project=project, log_stream=log_stream)
+        log.info("galileo: enabled (project=%s, stream=%s)", project, log_stream)
+        return True
+    except ImportError:
+        log.warning("galileo: skipped (package not installed)")
+        return False
+
+
+def _get_galileo_handler() -> Any | None:
+    if not _is_enabled("ENABLE_GALILEO"):
+        return None
+    if not _has_key("GALILEO_API_KEY"):
+        return None
+    try:
+        from galileo.handlers.langchain import GalileoCallback
+        return GalileoCallback(flush_on_chain_end=True)
+    except ImportError:
+        return None
+
+
+# ── Public API ────────────────────────────────────────────────────────
+def configure_tracing() -> dict[str, bool]:
+    """Initialise all enabled tracing backends.
+
+    Returns a dict showing which backends were activated, e.g.
+    ``{"langsmith": True, "langfuse": True, "galileo": False}``
+    """
+    status = {
+        "langsmith": _configure_langsmith(),
+        "langfuse": _configure_langfuse(),
+        "galileo": _configure_galileo(),
+    }
+    active = [k for k, v in status.items() if v]
+    log.info("tracing: backends=%s", active or "none")
+    return status
+
+
+def get_trace_callbacks(
+    *,
+    session_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    tags: Optional[list[str]] = None,
+    trace_name: Optional[str] = None,
+) -> list[Any]:
+    """Build callback handlers for every enabled backend.
+
+    Pass the returned list via ``config={"callbacks": callbacks}``
+    on any LangChain/LangGraph ``.invoke()`` / ``.stream()`` call.
+
+    LangSmith is NOT included here because it auto-instruments via
+    env vars — no explicit callback needed.
+    """
+    callbacks: list[Any] = []
+
+    langfuse_cb = _get_langfuse_handler(
+        session_id=session_id,
+        user_id=user_id,
+        tags=tags,
+        trace_name=trace_name,
+    )
+    if langfuse_cb is not None:
+        callbacks.append(langfuse_cb)
+
+    galileo_cb = _get_galileo_handler()
+    if galileo_cb is not None:
+        callbacks.append(galileo_cb)
+
+    return callbacks
+
+
+# ── Backward-compat alias (used by existing callsites) ────────────────
+def get_langfuse_handler(
+    *,
+    session_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    tags: Optional[list[str]] = None,
+    trace_name: Optional[str] = None,
+) -> Any | None:
+    """Deprecated — prefer ``get_trace_callbacks()`` for all backends."""
+    return _get_langfuse_handler(
+        session_id=session_id,
+        user_id=user_id,
+        tags=tags,
+        trace_name=trace_name,
+    )

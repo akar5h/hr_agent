@@ -16,7 +16,7 @@ os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
 import streamlit as st
 from dotenv import load_dotenv
 from src.observability.logging import get_logger
-from src.observability.tracing import configure_tracing, get_langfuse_handler
+from src.observability.tracing import configure_tracing, get_trace_callbacks
 
 load_dotenv()
 configure_tracing()
@@ -548,15 +548,12 @@ def process_user_message(user_input: str) -> None:
             budget_exhausted = False
             try:
                 agent = get_or_create_agent(force_refresh=False)
-                callbacks = []
-                langfuse_cb = get_langfuse_handler(
+                callbacks = get_trace_callbacks(
                     session_id=st.session_state.session_id,
                     user_id=st.session_state.client_id,
                     tags=["hr-agent", st.session_state.client_id],
                     trace_name="hr-recruitment-chat",
                 )
-                if langfuse_cb is not None:
-                    callbacks.append(langfuse_cb)
                 thread_config = {
                     "configurable": {"thread_id": st.session_state.session_id},
                     "recursion_limit": 50,

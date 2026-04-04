@@ -76,16 +76,13 @@ def trigger_ats_ranking(position_id: str, client_id: str) -> str:
         position_id=resolved_position_id,
         rubric=rubric,
     )
-    from src.observability.tracing import get_langfuse_handler
+    from src.observability.tracing import get_trace_callbacks
 
-    ats_callbacks = []
-    ats_handler = get_langfuse_handler(
+    ats_callbacks = get_trace_callbacks(
         session_id=f"ats-{resolved_position_id}",
         tags=["ats-ranking", client_id],
         trace_name="ats-ranking",
     )
-    if ats_handler is not None:
-        ats_callbacks.append(ats_handler)
     result = ats_agent.invoke(
         {"messages": [{"role": "user", "content": f"Rank all candidates for position {resolved_position_id}"}]},
         config={

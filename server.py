@@ -122,9 +122,17 @@ def _run_turn(agent: Any, session_id: str, message: str) -> dict[str, Any]:
     budget_exhausted = False
     t0 = time.monotonic()
 
+    from src.observability.tracing import get_trace_callbacks
+
+    callbacks = get_trace_callbacks(
+        session_id=session_id,
+        tags=["hr-agent", "api"],
+        trace_name="hr-recruitment-api",
+    )
     thread_config = {
         "configurable": {"thread_id": session_id},
         "recursion_limit": 50,
+        "callbacks": callbacks,
     }
 
     for chunk in agent.stream(

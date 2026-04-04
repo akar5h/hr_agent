@@ -6,3 +6,15 @@ data/
 
 # Local environment configuration
 .env
+
+# Virtual environment
+.venv/
+
+# IDE
+.idea/
+
+# Logs
+logs/
+
+# Claude
+.claude/
