@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from src.guardrails.sanitizer import add_instruction_boundary
+from src.observability.decorators import traced
 
 
+@traced(name="build-system-prompt")
 def build_system_prompt(
     client_id: str,
     session_id: str,

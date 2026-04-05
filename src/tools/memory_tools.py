@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from src.database.db import get_db
 from src.memory.retrieval import retrieve_relevant_memories
+from src.observability.decorators import traced
 from src.tools._compat import tool
 
 
@@ -35,6 +36,7 @@ def _classify_memory_type(memory_key: str) -> str:
     return "episodic"
 
 
+@traced(name="load-client-memories")
 def _load_client_memories(
     client_id: str,
     query_context: str = "",

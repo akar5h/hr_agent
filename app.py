@@ -16,7 +16,7 @@ os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
 import streamlit as st
 from dotenv import load_dotenv
 from src.observability.logging import get_logger
-from src.observability.tracing import configure_tracing, get_trace_callbacks
+from src.observability.tracing import configure_tracing, get_trace_config
 
 load_dotenv()
 configure_tracing()
@@ -548,7 +548,7 @@ def process_user_message(user_input: str) -> None:
             budget_exhausted = False
             try:
                 agent = get_or_create_agent(force_refresh=False)
-                callbacks = get_trace_callbacks(
+                trace_cfg = get_trace_config(
                     session_id=st.session_state.session_id,
                     user_id=st.session_state.client_id,
                     tags=["hr-agent", st.session_state.client_id],
@@ -557,7 +557,7 @@ def process_user_message(user_input: str) -> None:
                 thread_config = {
                     "configurable": {"thread_id": st.session_state.session_id},
                     "recursion_limit": 50,
-                    "callbacks": callbacks,
+                    **trace_cfg,
                 }
                 if st.session_state.show_agent_progress:
                     status_widget = st.status("Agent running...", expanded=True)

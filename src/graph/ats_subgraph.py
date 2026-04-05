@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from src.database.db import get_db
 from src.llm import build_chat_model
+from src.observability.decorators import traced
 from src.prompts.ats import build_ats_system_prompt
 from src.tools._compat import tool
 
@@ -203,6 +204,7 @@ ATS_TOOLS = [
 ]
 
 
+@traced(name="build-ats-agent")
 def build_ats_agent(client_id: str, position_id: str, rubric: Dict[str, Any]):
     """Build ATS sub-agent for position-level ranking."""
     model = build_chat_model(temperature=0)

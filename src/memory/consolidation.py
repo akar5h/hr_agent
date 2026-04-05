@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from src.observability.decorators import traced
+
 CONSOLIDATION_PROMPT_TEMPLATE = """
 You are a memory consolidation assistant. Review the following episodic session notes
 for client {client_id} and extract 1-3 durable, generalizable facts about their
@@ -21,6 +23,7 @@ Episodic notes:
 """
 
 
+@traced(name="consolidate-session-memories")
 def consolidate_session_memories(conn: Any, model: Any, client_id: str, session_id: str) -> list[str]:
     """Write up to 3 consolidated semantic memory entries and return them."""
     rows = conn.execute(

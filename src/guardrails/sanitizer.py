@@ -6,6 +6,8 @@ import os
 import re
 import unicodedata
 
+from src.observability.decorators import traced
+
 ENABLE_HARDENING = os.getenv("ENABLE_HARDENING", "false").lower() == "true"
 MAX_INPUT_CHARS = int(os.getenv("HARDENING_MAX_INPUT_CHARS", "8000"))
 INSTRUCTION_BOUNDARY = "### END OF SYSTEM INSTRUCTIONS ###"
@@ -16,6 +18,7 @@ _ZERO_WIDTH = re.compile(r"[\u200b\u200c\u200d\ufeff\u2060]")
 _BIDI_FORMATTING = re.compile(r"[\u202a-\u202e\u2066-\u2069\u200e\u200f]")
 
 
+@traced(name="sanitize-input")
 def sanitize(text: str) -> str:
     """Return sanitized text when hardening is enabled."""
     if not ENABLE_HARDENING:

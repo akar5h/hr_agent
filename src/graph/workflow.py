@@ -10,6 +10,7 @@ from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
 from src.database.db import get_checkpointer, get_db
+from src.observability.decorators import traced
 from src.guardrails.rate_limiter import record_tool_call
 from src.guardrails.sanitizer import ENABLE_HARDENING, sanitize
 from src.graph.ats_subgraph import build_ats_agent
@@ -76,9 +77,9 @@ def trigger_ats_ranking(position_id: str, client_id: str) -> str:
         position_id=resolved_position_id,
         rubric=rubric,
     )
-    from src.observability.tracing import get_trace_callbacks
+    from src.observability.tracing import get_trace_config
 
-    ats_callbacks = get_trace_callbacks(
+    trace_cfg = get_trace_config(
         session_id=f"ats-{resolved_position_id}",
         tags=["ats-ranking", client_id],
         trace_name="ats-ranking",
@@ -87,7 +88,7 @@ def trigger_ats_ranking(position_id: str, client_id: str) -> str:
         {"messages": [{"role": "user", "content": f"Rank all candidates for position {resolved_position_id}"}]},
         config={
             "configurable": {"thread_id": f"ats-{resolved_position_id}"},
-            "callbacks": ats_callbacks,
+            **trace_cfg,
         },
     )
     messages = result.get("messages", [])
@@ -136,6 +137,7 @@ def _harden_tool(original_tool: Any, session_id: str) -> Any:
     )
 
 
+@traced(name="build-agent")
 def build_agent(client_id: str = "default", session_id: str = "default"):
     """Build and return a compiled ReAct agent with all tools and checkpointing."""
     model = build_chat_model(temperature=0)

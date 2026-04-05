@@ -11,6 +11,8 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg import Connection
 from psycopg.rows import dict_row
 
+from src.observability.decorators import traced
+
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 # Backwards-compatible alias retained for older tests and callers.
 DATABASE_PATH = DATABASE_URL
@@ -63,6 +65,7 @@ def reset_checkpointer() -> None:
     _close_checkpointer()
 
 
+@traced(name="get-checkpointer")
 def get_checkpointer() -> PostgresSaver:
     """Return a singleton Postgres-backed LangGraph checkpointer.
 

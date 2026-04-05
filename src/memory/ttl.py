@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.observability.decorators import traced
 
+
+@traced(name="expire-old-memories")
 def expire_old_memories(conn: Any) -> int:
     """Delete expired episodic memories and return deleted row count."""
     deleted_rows = conn.execute(

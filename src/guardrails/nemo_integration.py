@@ -17,6 +17,8 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from src.observability.decorators import traced
+
 ENABLE_NEMO_GUARDRAILS = os.getenv("ENABLE_NEMO_GUARDRAILS", "false").lower() == "true"
 
 logger = logging.getLogger(__name__)
@@ -54,6 +56,7 @@ def _get_rails():
         return None
 
 
+@traced(name="guardrails-check-input")
 async def check_input(text: str) -> tuple[bool, Optional[str]]:
     """Check user input against NeMo input rails.
 
@@ -88,6 +91,7 @@ async def check_input(text: str) -> tuple[bool, Optional[str]]:
         return True, None
 
 
+@traced(name="guardrails-check-output")
 async def check_output(text: str) -> tuple[bool, Optional[str]]:
     """Check agent output against NeMo output rails.
 

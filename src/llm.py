@@ -6,11 +6,14 @@ import os
 
 from langchain_openai import ChatOpenAI
 
+from src.observability.decorators import traced
+
 DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v3.2"
 DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_OPENROUTER_FALLBACK_MODEL = "deepseek/deepseek-chat"
 
 
+@traced(name="build-chat-model")
 def build_chat_model(temperature: float = 0.0, model: str | None = None) -> ChatOpenAI:
     """Return a ChatOpenAI client configured for OpenRouter with fallback."""
     api_key = os.getenv("OPENROUTER_API_KEY")

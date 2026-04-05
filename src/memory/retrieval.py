@@ -6,6 +6,8 @@ import json
 import math
 from typing import Any
 
+from src.observability.decorators import traced
+
 TOP_K = 5
 
 
@@ -34,6 +36,7 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
         return sum(x * y for x, y in zip(a, b))
 
 
+@traced(name="retrieve-relevant-memories")
 def retrieve_relevant_memories(
     conn: Any,
     client_id: str,

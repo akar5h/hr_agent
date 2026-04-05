@@ -7,6 +7,8 @@ Each backend is toggled independently via env flags:
 
 When a backend is enabled AND its credentials are present, a callback
 handler is created and returned by ``get_trace_callbacks()``.
+
+Per-function tracing is handled by ``src.observability.decorators.traced``.
 """
 
 from __future__ import annotations
@@ -42,9 +44,11 @@ def _configure_langsmith() -> bool:
         log.info("langsmith: skipped (no API key)")
         return False
 
-    # LangSmith auto-instruments when these env vars are set
+    # LangSmith auto-instruments when these env vars are set.
     os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGSMITH_TRACING"] = "true"
     os.environ.setdefault("LANGCHAIN_API_KEY", api_key)
+    os.environ.setdefault("LANGSMITH_API_KEY", api_key)
     os.environ.setdefault(
         "LANGCHAIN_PROJECT",
         os.getenv("LANGSMITH_PROJECT", "hr-recruitment-agent"),
@@ -74,32 +78,41 @@ def _configure_langfuse() -> bool:
         return False
 
 
-def _get_langfuse_handler(
-    *,
-    session_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    tags: Optional[list[str]] = None,
-    trace_name: Optional[str] = None,
-) -> Any | None:
+def _get_langfuse_handler() -> Any | None:
+    """Create a plain Langfuse CallbackHandler (v4 API).
+
+    In Langfuse v4, session_id/user_id/tags are passed via config metadata,
+    not via the constructor.
+    """
     if not _is_enabled("ENABLE_LANGFUSE"):
         return None
     if not _has_key("LANGFUSE_SECRET_KEY", "LANGFUSE_PUBLIC_KEY"):
         return None
     try:
         from langfuse.langchain import CallbackHandler
+        return CallbackHandler()
     except ImportError:
         return None
 
-    kwargs: dict[str, Any] = {}
+
+def _build_langfuse_metadata(
+    *,
+    session_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    tags: Optional[list[str]] = None,
+    trace_name: Optional[str] = None,
+) -> dict[str, Any]:
+    """Build Langfuse v4 metadata dict for config["metadata"]."""
+    meta: dict[str, Any] = {}
     if session_id is not None:
-        kwargs["session_id"] = session_id
+        meta["langfuse_session_id"] = session_id
     if user_id is not None:
-        kwargs["user_id"] = user_id
+        meta["langfuse_user_id"] = user_id
     if tags is not None:
-        kwargs["tags"] = tags
+        meta["langfuse_tags"] = tags
     if trace_name is not None:
-        kwargs["trace_name"] = trace_name
-    return CallbackHandler(**kwargs)
+        meta["langfuse_trace_name"] = trace_name
+    return meta
 
 
 # ── Galileo AI ────────────────────────────────────────────────────────
@@ -151,29 +164,27 @@ def configure_tracing() -> dict[str, bool]:
     return status
 
 
-def get_trace_callbacks(
+def get_trace_config(
     *,
     session_id: Optional[str] = None,
     user_id: Optional[str] = None,
     tags: Optional[list[str]] = None,
     trace_name: Optional[str] = None,
-) -> list[Any]:
-    """Build callback handlers for every enabled backend.
+) -> dict[str, Any]:
+    """Build a complete LangChain config dict with callbacks + metadata.
 
-    Pass the returned list via ``config={"callbacks": callbacks}``
-    on any LangChain/LangGraph ``.invoke()`` / ``.stream()`` call.
+    Returns a dict like::
 
-    LangSmith is NOT included here because it auto-instruments via
-    env vars — no explicit callback needed.
+        {
+            "callbacks": [langfuse_handler, galileo_handler],
+            "metadata": {"langfuse_session_id": "...", ...},
+        }
+
+    Merge this into your thread_config before calling ``.invoke()``/``.stream()``.
     """
     callbacks: list[Any] = []
 
-    langfuse_cb = _get_langfuse_handler(
-        session_id=session_id,
-        user_id=user_id,
-        tags=tags,
-        trace_name=trace_name,
-    )
+    langfuse_cb = _get_langfuse_handler()
     if langfuse_cb is not None:
         callbacks.append(langfuse_cb)
 
@@ -181,10 +192,39 @@ def get_trace_callbacks(
     if galileo_cb is not None:
         callbacks.append(galileo_cb)
 
-    return callbacks
+    metadata = _build_langfuse_metadata(
+        session_id=session_id,
+        user_id=user_id,
+        tags=tags,
+        trace_name=trace_name,
+    )
+
+    result: dict[str, Any] = {}
+    if callbacks:
+        result["callbacks"] = callbacks
+    if metadata:
+        result["metadata"] = metadata
+    return result
 
 
-# ── Backward-compat alias (used by existing callsites) ────────────────
+# ── Backward-compat aliases ───────────────────────────────────────────
+def get_trace_callbacks(
+    *,
+    session_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    tags: Optional[list[str]] = None,
+    trace_name: Optional[str] = None,
+) -> list[Any]:
+    """Deprecated — prefer ``get_trace_config()`` for full metadata support."""
+    config = get_trace_config(
+        session_id=session_id,
+        user_id=user_id,
+        tags=tags,
+        trace_name=trace_name,
+    )
+    return config.get("callbacks", [])
+
+
 def get_langfuse_handler(
     *,
     session_id: Optional[str] = None,
@@ -192,10 +232,5 @@ def get_langfuse_handler(
     tags: Optional[list[str]] = None,
     trace_name: Optional[str] = None,
 ) -> Any | None:
-    """Deprecated — prefer ``get_trace_callbacks()`` for all backends."""
-    return _get_langfuse_handler(
-        session_id=session_id,
-        user_id=user_id,
-        tags=tags,
-        trace_name=trace_name,
-    )
+    """Deprecated — prefer ``get_trace_config()`` for full metadata support."""
+    return _get_langfuse_handler()

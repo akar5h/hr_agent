@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
 from src.cache.tool_cache import cached_tool
+from src.observability.decorators import traced
 from src.tools._compat import tool
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -27,6 +28,7 @@ class ScrapeWebsiteInput(BaseModel):
     url: str
 
 
+@traced(name="load-html")
 def _load_html(url: str) -> str:
     hostname = (urlparse(url).hostname or "").lower()
     fixture_name = WEBSITE_FIXTURE_MAP.get(hostname)

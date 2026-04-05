@@ -16,6 +16,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from src.observability.decorators import traced
+
 MAX_MESSAGES_BEFORE_COMPRESS = 20
 KEEP_RECENT_MESSAGES = 8
 TOKEN_COMPRESS_THRESHOLD = int(os.getenv("TOKEN_COMPRESS_THRESHOLD", "32000"))
@@ -50,6 +52,7 @@ def count_messages_tokens(messages: list[Any]) -> int:
     return total
 
 
+@traced(name="compress-messages")
 def compress_messages(messages: list[Any], model: Any) -> list[Any]:
     """Summarize old messages into a single SystemMessage to reduce context length.
 
@@ -94,6 +97,7 @@ def compress_messages(messages: list[Any], model: Any) -> list[Any]:
     return system_messages + [summary_msg] + keep
 
 
+@traced(name="compress-messages-token-aware")
 def compress_messages_token_aware(messages: list[Any], model: Any) -> list[Any]:
     """Compress only when estimated token count crosses threshold."""
     estimated = count_messages_tokens(messages)

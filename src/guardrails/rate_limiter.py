@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from collections import defaultdict
 
+from src.observability.decorators import traced
+
 ENABLE_HARDENING = os.getenv("ENABLE_HARDENING", "false").lower() == "true"
 MAX_TOOL_CALLS = int(os.getenv("MAX_TOOL_CALLS_PER_SESSION", "50"))
 
@@ -15,6 +17,7 @@ class ToolRateLimitError(RuntimeError):
     """Raised when a session exceeds configured tool call limits."""
 
 
+@traced(name="record-tool-call")
 def record_tool_call(session_id: str) -> None:
     if not ENABLE_HARDENING:
         return

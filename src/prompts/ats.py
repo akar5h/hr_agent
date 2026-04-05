@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any, Dict
 
+from src.observability.decorators import traced
 
+
+@traced(name="build-ats-system-prompt")
 def build_ats_system_prompt(client_id: str, position_id: str, rubric: Dict[str, Any]) -> str:
     """Build ATS system prompt with client, position, and rubric context."""
     return f"""You are an ATS (Applicant Tracking System) ranking agent for client {client_id}.

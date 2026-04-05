@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from src.cache.tool_cache import ToolCache
 from src.database.db import get_db
+from src.observability.decorators import traced
 from src.database.schema import CREATE_TABLES_SQL
 from src.llm import DEFAULT_OPENROUTER_MODEL, build_chat_model
 from src.tools._compat import tool
@@ -67,6 +68,7 @@ def _clean_sql(sql: str) -> str:
     return cleaned
 
 
+@traced(name="generate-sql")
 def _generate_sql(query_intent: str, client_id: str) -> str:
     cache_key = {
         "query_intent": query_intent.strip(),
