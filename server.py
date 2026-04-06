@@ -60,29 +60,60 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------------------------
-# In-memory session registry with TTL eviction
+# Redis-backed session registry — works across multiple uvicorn workers.
+# Only stores client_id per session. Agent is rebuilt per-request (cheap,
+# no LLM call). Conversation state lives in Postgres checkpointer.
 # ---------------------------------------------------------------------------
-_sessions: dict[str, dict[str, Any]] = {}
+import redis as _redis_mod
+
 SESSION_TTL = 3600  # 60 minutes
+_redis_client: _redis_mod.Redis | None = None
 
 
-def _evict_stale_sessions() -> None:
+def _get_redis() -> _redis_mod.Redis:
+    global _redis_client
+    if _redis_client is None:
+        url = os.getenv("REDIS_URL", "").strip()
+        if not url:
+            raise RuntimeError("REDIS_URL not set — required for session registry.")
+        _redis_client = _redis_mod.from_url(url, decode_responses=True)
+    return _redis_client
+
+
+def _session_key(session_id: str) -> str:
+    return f"session:{session_id}"
+
+
+def _save_session(session_id: str, client_id: str) -> None:
+    _get_redis().setex(_session_key(session_id), SESSION_TTL, client_id)
+
+
+def _get_session(session_id: str) -> dict[str, str]:
+    """Look up session in Redis. Refreshes TTL on access."""
+    r = _get_redis()
+    key = _session_key(session_id)
+    client_id = r.get(key)
+    if client_id is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Session '{session_id}' not found or expired. POST /sessions first.",
+        )
+    r.expire(key, SESSION_TTL)
+    return {"session_id": session_id, "client_id": client_id}
+
+
+def _delete_session(session_id: str) -> None:
     from src.guardrails.rate_limiter import reset_session
 
-    now = time.time()
-    stale = [sid for sid, s in _sessions.items() if now - s.get("last_access", 0) > SESSION_TTL]
-    for sid in stale:
-        _sessions.pop(sid, None)
-        reset_session(sid)
+    _get_redis().delete(_session_key(session_id))
+    reset_session(session_id)
 
 
-def _get_session(session_id: str) -> dict[str, Any]:
-    _evict_stale_sessions()
-    session = _sessions.get(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found. POST /sessions first.")
-    session["last_access"] = time.time()
-    return session
+def _build_session_agent(client_id: str, session_id: str) -> Any:
+    """Build a fresh agent for a session. Cheap — no LLM call."""
+    from src.graph.workflow import build_agent
+
+    return build_agent(client_id=client_id, session_id=session_id)
 
 
 # ---------------------------------------------------------------------------
@@ -251,14 +282,11 @@ async def health() -> dict[str, Any]:
     summary="Create a new isolated agent session",
 )
 async def create_session(req: CreateSessionRequest = CreateSessionRequest()) -> CreateSessionResponse:
-    from src.graph.workflow import build_agent
     from src.guardrails.rate_limiter import reset_session
 
-    _evict_stale_sessions()
     session_id = str(uuid.uuid4())
     reset_session(session_id)
-    agent = build_agent(client_id=req.client_id, session_id=session_id)
-    _sessions[session_id] = {"agent": agent, "client_id": req.client_id, "last_access": time.time()}
+    _save_session(session_id, req.client_id)
     return CreateSessionResponse(session_id=session_id, client_id=req.client_id)
 
 
@@ -271,7 +299,7 @@ async def chat(session_id: str, req: ChatRequest) -> ChatResponse:
     from src.guardrails.nemo_integration import check_input, check_output
 
     session = _get_session(session_id)
-    agent   = session["agent"]
+    agent = _build_session_agent(session["client_id"], session_id)
     error: str | None = None
 
     # NeMo input rail check
@@ -293,10 +321,8 @@ async def chat(session_id: str, req: ChatRequest) -> ChatResponse:
         if "SSL connection has been closed" in str(exc) or "consuming input failed" in str(exc):
             try:
                 from src.database.db import reset_checkpointer
-                from src.graph.workflow import build_agent
                 reset_checkpointer()
-                agent = build_agent(client_id=session["client_id"], session_id=session_id)
-                session["agent"] = agent
+                agent = _build_session_agent(session["client_id"], session_id)
                 turn = _run_turn(agent, session_id, req.message)
             except Exception:
                 turn = {"response": "", "tool_calls": [], "budget_exhausted": False, "duration_ms": 0}
@@ -326,16 +352,16 @@ async def chat(session_id: str, req: ChatRequest) -> ChatResponse:
     summary="Dispose a session and release its agent",
 )
 async def delete_session(session_id: str) -> dict[str, bool]:
-    from src.guardrails.rate_limiter import reset_session
-
-    _sessions.pop(session_id, None)
-    reset_session(session_id)
+    _delete_session(session_id)
     return {"deleted": True}
 
 
 @app.get("/sessions", summary="List active session IDs")
 async def list_sessions() -> dict[str, list[str]]:
-    return {"session_ids": list(_sessions.keys())}
+    r = _get_redis()
+    keys = r.keys("session:*")
+    sids = [k.removeprefix("session:") for k in keys]
+    return {"session_ids": sids}
 
 
 # ---------------------------------------------------------------------------
@@ -426,7 +452,7 @@ class EvaluateRequest(BaseModel):
 )
 async def evaluate(session_id: str, req: EvaluateRequest) -> ChatResponse:
     session = _get_session(session_id)
-    agent = session["agent"]
+    agent = _build_session_agent(session["client_id"], session_id)
 
     # Log the submission entry
     entry = {
