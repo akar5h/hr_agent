@@ -60,15 +60,28 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------------------------
-# In-memory session registry
+# In-memory session registry with TTL eviction
 # ---------------------------------------------------------------------------
 _sessions: dict[str, dict[str, Any]] = {}
+SESSION_TTL = 3600  # 60 minutes
+
+
+def _evict_stale_sessions() -> None:
+    from src.guardrails.rate_limiter import reset_session
+
+    now = time.time()
+    stale = [sid for sid, s in _sessions.items() if now - s.get("last_access", 0) > SESSION_TTL]
+    for sid in stale:
+        _sessions.pop(sid, None)
+        reset_session(sid)
 
 
 def _get_session(session_id: str) -> dict[str, Any]:
+    _evict_stale_sessions()
     session = _sessions.get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found. POST /sessions first.")
+    session["last_access"] = time.time()
     return session
 
 
@@ -241,10 +254,11 @@ async def create_session(req: CreateSessionRequest = CreateSessionRequest()) -> 
     from src.graph.workflow import build_agent
     from src.guardrails.rate_limiter import reset_session
 
+    _evict_stale_sessions()
     session_id = str(uuid.uuid4())
     reset_session(session_id)
     agent = build_agent(client_id=req.client_id, session_id=session_id)
-    _sessions[session_id] = {"agent": agent, "client_id": req.client_id}
+    _sessions[session_id] = {"agent": agent, "client_id": req.client_id, "last_access": time.time()}
     return CreateSessionResponse(session_id=session_id, client_id=req.client_id)
 
 
@@ -312,7 +326,10 @@ async def chat(session_id: str, req: ChatRequest) -> ChatResponse:
     summary="Dispose a session and release its agent",
 )
 async def delete_session(session_id: str) -> dict[str, bool]:
+    from src.guardrails.rate_limiter import reset_session
+
     _sessions.pop(session_id, None)
+    reset_session(session_id)
     return {"deleted": True}
 
 
