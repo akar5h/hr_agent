@@ -1,6 +1,13 @@
 """Tool exports for agent registration."""
 
-from src.tools.database_tools import get_hiring_rubric, query_database, submit_evaluation, write_database
+from src.tools.database_tools import (
+    get_candidate_by_email,
+    get_existing_evaluation,
+    get_hiring_rubric,
+    query_database,
+    submit_evaluation,
+    write_database,
+)
 from src.tools.deduplicator import deduplicate_candidate
 from src.tools.linkedin_fetcher import fetch_linkedin
 from src.tools.memory_tools import retrieve_memory, store_memory
@@ -17,6 +24,8 @@ ALL_TOOLS = [
     search_web,
     query_database,
     write_database,
+    get_candidate_by_email,
+    get_existing_evaluation,
     get_hiring_rubric,
     deduplicate_candidate,
     store_memory,

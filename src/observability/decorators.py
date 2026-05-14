@@ -1,4 +1,4 @@
-"""Unified tracing decorator — stacks LangSmith, Langfuse, and Galileo
+"""Unified tracing decorator — stacks LangSmith and Langfuse
 span decorators based on ENABLE_* env flags.
 
 Usage::
@@ -25,12 +25,11 @@ from typing import Any, Callable, Optional
 _backends_resolved = False
 _traceable_fn: Optional[Callable] = None  # langsmith @traceable
 _observe_fn: Optional[Callable] = None  # langfuse @observe
-_galileo_log_fn: Optional[Callable] = None  # galileo @log
 
 
 def _resolve_backends() -> None:
     """Import decorator factories from each enabled backend (once)."""
-    global _backends_resolved, _traceable_fn, _observe_fn, _galileo_log_fn
+    global _backends_resolved, _traceable_fn, _observe_fn
     if _backends_resolved:
         return
     _backends_resolved = True
@@ -51,14 +50,6 @@ def _resolve_backends() -> None:
         except ImportError:
             pass
 
-    # Galileo
-    if os.getenv("ENABLE_GALILEO", "false").strip().lower() == "true":
-        try:
-            from galileo import log as galileo_log
-            _galileo_log_fn = galileo_log
-        except ImportError:
-            pass
-
 
 def _build_chain(fn: Callable, name: str, span_type: str) -> Callable:
     """Stack enabled backend decorators around *fn* (innermost first)."""
@@ -74,10 +65,6 @@ def _build_chain(fn: Callable, name: str, span_type: str) -> Callable:
     if _observe_fn is not None:
         wrapped = _observe_fn(name=name)(wrapped)
 
-    # Galileo (outermost)
-    if _galileo_log_fn is not None:
-        wrapped = _galileo_log_fn(span_type=span_type)(wrapped)
-
     return wrapped
 
 
@@ -88,8 +75,8 @@ def traced(
     *,
     span_type: str = "workflow",
 ) -> Callable:
-    """Conditionally apply LangSmith ``@traceable``, Langfuse ``@observe``,
-    and Galileo ``@log`` to a function based on ``ENABLE_*`` env flags.
+    """Conditionally apply LangSmith ``@traceable`` and Langfuse ``@observe``
+    to a function based on ``ENABLE_*`` env flags.
 
     The decorator chain is built lazily on the first call and cached,
     so import-time cost is zero.

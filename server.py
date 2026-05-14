@@ -28,6 +28,7 @@ import os
 import time
 import traceback
 import uuid
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -159,12 +160,14 @@ MAX_TOOL_CALLS_PER_TURN = int(os.getenv("MAX_TOOL_CALLS_PER_TURN", "20"))
 def _run_turn(agent: Any, session_id: str, message: str) -> dict[str, Any]:
     """Execute one chat turn synchronously and return response + tool calls."""
     from langchain_core.messages import HumanMessage
+    from src.graph.workflow import reset_turn_tool_cache
 
     tool_calls: list[dict[str, Any]] = []
     final_response = ""
     tool_call_count = 0
     budget_exhausted = False
     t0 = time.monotonic()
+    reset_turn_tool_cache(session_id)
 
     from src.observability.tracing import get_trace_config
 
@@ -172,6 +175,9 @@ def _run_turn(agent: Any, session_id: str, message: str) -> dict[str, Any]:
         session_id=session_id,
         tags=["hr-agent", "api"],
         trace_name="hr-recruitment-api",
+        workflow="Candidate Screening",
+        condition="chat_turn",
+        graph_node="agent_stream",
     )
     thread_config = {
         "configurable": {"thread_id": session_id},
@@ -257,10 +263,12 @@ class ChatResponse(BaseModel):
 async def _startup() -> None:
     """Run migrations + seed on startup."""
     try:
+        from src.observability.tracing import configure_tracing
         from src.database.schema import run_migrations
         from src.database.seed import run_seed
         from src.database.db import get_db
 
+        configure_tracing()
         run_migrations()
         with get_db() as conn:
             rubric_count = conn.execute("SELECT COUNT(*) AS c FROM hiring_rubrics").fetchone()["c"]
@@ -315,7 +323,7 @@ async def chat(session_id: str, req: ChatRequest) -> ChatResponse:
         )
 
     try:
-        turn = _run_turn(agent, session_id, req.message)
+        turn = await asyncio.to_thread(_run_turn, agent, session_id, req.message)
     except Exception as exc:
         # If Postgres connection dropped, rebuild the agent and retry once
         if "SSL connection has been closed" in str(exc) or "consuming input failed" in str(exc):
@@ -323,7 +331,7 @@ async def chat(session_id: str, req: ChatRequest) -> ChatResponse:
                 from src.database.db import reset_checkpointer
                 reset_checkpointer()
                 agent = _build_session_agent(session["client_id"], session_id)
-                turn = _run_turn(agent, session_id, req.message)
+                turn = await asyncio.to_thread(_run_turn, agent, session_id, req.message)
             except Exception:
                 turn = {"response": "", "tool_calls": [], "budget_exhausted": False, "duration_ms": 0}
                 error = traceback.format_exc()
@@ -452,7 +460,6 @@ class EvaluateRequest(BaseModel):
 )
 async def evaluate(session_id: str, req: EvaluateRequest) -> ChatResponse:
     session = _get_session(session_id)
-    agent = _build_session_agent(session["client_id"], session_id)
 
     # Log the submission entry
     entry = {
@@ -468,7 +475,7 @@ async def evaluate(session_id: str, req: EvaluateRequest) -> ChatResponse:
     }
     _append_jsonl(ENTRY_LOG_FILE, entry)
 
-    # Build prompt and run through the agent
+    # Build prompt for history compatibility; execute through bounded workflow.
     prompt = _build_evaluation_prompt(
         resume_path=req.resume_path,
         linkedin_url=req.linkedin_url,
@@ -478,7 +485,39 @@ async def evaluate(session_id: str, req: EvaluateRequest) -> ChatResponse:
 
     error: str | None = None
     try:
-        turn = _run_turn(agent, session_id, prompt)
+        from src.database.db import get_checkpointer
+        from src.graph.screening_workflow import run_candidate_screening
+        from src.observability.tracing import get_trace_config
+
+        trace_cfg = get_trace_config(
+            session_id=session_id,
+            user_id=session["client_id"],
+            tags=["hr-agent", session["client_id"], "candidate-screening"],
+            trace_name="candidate-screening",
+            workflow="Candidate Screening",
+            condition="evaluate_endpoint",
+            graph_node="candidate_screening_graph",
+        )
+        final_state = await asyncio.to_thread(
+            run_candidate_screening,
+            session_id=session_id,
+            client_id=session["client_id"],
+            position_id=req.position,
+            resume_path=req.resume_path,
+            linkedin_url=req.linkedin_url.strip(),
+            website_url=req.website_url.strip(),
+            checkpointer=get_checkpointer(),
+            trace_config=trace_cfg,
+        )
+        tool_calls = [
+            {"name": "candidate_screening_graph", "args": {"graph_node": final_state.get("graph_node", "")}},
+        ]
+        turn = {
+            "response": final_state.get("final_response", ""),
+            "tool_calls": tool_calls,
+            "budget_exhausted": False,
+            "duration_ms": 0,
+        }
     except Exception as exc:
         turn = {"response": "", "tool_calls": [], "budget_exhausted": False, "duration_ms": 0}
         error = traceback.format_exc()

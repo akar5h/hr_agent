@@ -1,9 +1,8 @@
-"""Unified tracing layer — LangSmith, Langfuse, and Galileo AI.
+"""Unified tracing layer — LangSmith and Langfuse.
 
 Each backend is toggled independently via env flags:
   ENABLE_LANGSMITH=true/false
   ENABLE_LANGFUSE=true/false
-  ENABLE_GALILEO=true/false
 
 When a backend is enabled AND its credentials are present, a callback
 handler is created and returned by ``get_trace_callbacks()``.
@@ -19,6 +18,9 @@ from typing import Any, Optional
 from src.observability.logging import get_logger
 
 log = get_logger(__name__)
+AGENT_VERSION = os.getenv("AGENT_VERSION", "hr-ai-reliability-v2")
+PROMPT_VERSION = os.getenv("PROMPT_VERSION", "candidate-screening-v2-reliability")
+TOOL_VERSION = os.getenv("TOOL_VERSION", "tools-v2-reliability")
 
 
 # ── helpers ────────────────────────────────────────────────────────────
@@ -101,9 +103,16 @@ def _build_langfuse_metadata(
     user_id: Optional[str] = None,
     tags: Optional[list[str]] = None,
     trace_name: Optional[str] = None,
+    workflow: Optional[str] = None,
+    condition: Optional[str] = None,
+    graph_node: Optional[str] = None,
 ) -> dict[str, Any]:
     """Build Langfuse v4 metadata dict for config["metadata"]."""
-    meta: dict[str, Any] = {}
+    meta: dict[str, Any] = {
+        "agent_version": AGENT_VERSION,
+        "prompt_version": PROMPT_VERSION,
+        "tool_version": TOOL_VERSION,
+    }
     if session_id is not None:
         meta["langfuse_session_id"] = session_id
     if user_id is not None:
@@ -112,39 +121,13 @@ def _build_langfuse_metadata(
         meta["langfuse_tags"] = tags
     if trace_name is not None:
         meta["langfuse_trace_name"] = trace_name
+    if workflow is not None:
+        meta["workflow"] = workflow
+    if condition is not None:
+        meta["condition"] = condition
+    if graph_node is not None:
+        meta["graph_node"] = graph_node
     return meta
-
-
-# ── Galileo AI ────────────────────────────────────────────────────────
-def _configure_galileo() -> bool:
-    """Verify Galileo SDK + credentials are available."""
-    if not _is_enabled("ENABLE_GALILEO"):
-        return False
-    if not _has_key("GALILEO_API_KEY"):
-        log.info("galileo: skipped (no API key)")
-        return False
-    try:
-        from galileo import galileo_context  # noqa: F401
-        project = os.getenv("GALILEO_PROJECT", "hr-recruitment-agent")
-        log_stream = os.getenv("GALILEO_LOG_STREAM", "default")
-        galileo_context.init(project=project, log_stream=log_stream)
-        log.info("galileo: enabled (project=%s, stream=%s)", project, log_stream)
-        return True
-    except ImportError:
-        log.warning("galileo: skipped (package not installed)")
-        return False
-
-
-def _get_galileo_handler() -> Any | None:
-    if not _is_enabled("ENABLE_GALILEO"):
-        return None
-    if not _has_key("GALILEO_API_KEY"):
-        return None
-    try:
-        from galileo.handlers.langchain import GalileoCallback
-        return GalileoCallback(flush_on_chain_end=True)
-    except ImportError:
-        return None
 
 
 # ── Public API ────────────────────────────────────────────────────────
@@ -152,12 +135,11 @@ def configure_tracing() -> dict[str, bool]:
     """Initialise all enabled tracing backends.
 
     Returns a dict showing which backends were activated, e.g.
-    ``{"langsmith": True, "langfuse": True, "galileo": False}``
+    ``{"langsmith": True, "langfuse": True}``
     """
     status = {
         "langsmith": _configure_langsmith(),
         "langfuse": _configure_langfuse(),
-        "galileo": _configure_galileo(),
     }
     active = [k for k, v in status.items() if v]
     log.info("tracing: backends=%s", active or "none")
@@ -170,13 +152,16 @@ def get_trace_config(
     user_id: Optional[str] = None,
     tags: Optional[list[str]] = None,
     trace_name: Optional[str] = None,
+    workflow: Optional[str] = None,
+    condition: Optional[str] = None,
+    graph_node: Optional[str] = None,
 ) -> dict[str, Any]:
     """Build a complete LangChain config dict with callbacks + metadata.
 
     Returns a dict like::
 
         {
-            "callbacks": [langfuse_handler, galileo_handler],
+            "callbacks": [langfuse_handler],
             "metadata": {"langfuse_session_id": "...", ...},
         }
 
@@ -188,15 +173,14 @@ def get_trace_config(
     if langfuse_cb is not None:
         callbacks.append(langfuse_cb)
 
-    galileo_cb = _get_galileo_handler()
-    if galileo_cb is not None:
-        callbacks.append(galileo_cb)
-
     metadata = _build_langfuse_metadata(
         session_id=session_id,
         user_id=user_id,
         tags=tags,
         trace_name=trace_name,
+        workflow=workflow,
+        condition=condition,
+        graph_node=graph_node,
     )
 
     result: dict[str, Any] = {}
@@ -214,6 +198,9 @@ def get_trace_callbacks(
     user_id: Optional[str] = None,
     tags: Optional[list[str]] = None,
     trace_name: Optional[str] = None,
+    workflow: Optional[str] = None,
+    condition: Optional[str] = None,
+    graph_node: Optional[str] = None,
 ) -> list[Any]:
     """Deprecated — prefer ``get_trace_config()`` for full metadata support."""
     config = get_trace_config(
@@ -221,6 +208,9 @@ def get_trace_callbacks(
         user_id=user_id,
         tags=tags,
         trace_name=trace_name,
+        workflow=workflow,
+        condition=condition,
+        graph_node=graph_node,
     )
     return config.get("callbacks", [])
 

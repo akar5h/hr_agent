@@ -45,7 +45,7 @@ def parallel_gather_candidate_info(
     async def _gather():
         tasks = [
             asyncio.to_thread(parse_resume.invoke, {"file_path": resume_path}),
-            asyncio.to_thread(fetch_linkedin.invoke, {"url": linkedin_url}),
+            asyncio.to_thread(fetch_linkedin.invoke, {"linkedin_url": linkedin_url}),
         ]
         if website_url:
             tasks.append(asyncio.to_thread(scrape_website.invoke, {"url": website_url}))

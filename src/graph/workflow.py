@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from typing import Any
 
 from langchain.agents import create_agent
@@ -98,6 +99,33 @@ def trigger_ats_ranking(position_id: str, client_id: str) -> str:
 
 
 AGENT_TOOLS = [*ALL_TOOLS, trigger_ats_ranking]
+PROMPT_VERSION = "candidate-screening-v2-reliability"
+TOOL_VERSION = "tools-v2-reliability"
+_DETERMINISTIC_TOOL_NAMES = {
+    "parse_resume",
+    "fetch_linkedin",
+    "scrape_website",
+    "search_web",
+    "query_database",
+    "get_candidate_by_email",
+    "get_existing_evaluation",
+    "get_hiring_rubric",
+    "deduplicate_candidate",
+    "retrieve_memory",
+    "parallel_gather_candidate_info",
+}
+_TURN_TOOL_RESULTS: dict[str, dict[str, Any]] = {}
+
+
+def reset_turn_tool_cache(session_id: str) -> None:
+    """Clear per-turn deterministic tool results for a session."""
+    _TURN_TOOL_RESULTS.pop(session_id, None)
+
+
+def _tool_fingerprint(tool_name: str, kwargs: dict[str, Any]) -> str:
+    serialized = json.dumps(kwargs, sort_keys=True, default=str)
+    digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    return f"{tool_name}:{digest}"
 
 
 def _sanitize_payload(payload: Any) -> Any:
@@ -120,12 +148,22 @@ def _sanitize_result(value: Any) -> Any:
     return value
 
 
-def _harden_tool(original_tool: Any, session_id: str) -> Any:
+def _wrap_tool(original_tool: Any, session_id: str) -> Any:
     def wrapped_call(**kwargs: Any) -> Any:
         record_tool_call(session_id)
         sanitized_input = _sanitize_payload(kwargs)
+        tool_name = getattr(original_tool, "name", "wrapped_tool")
+        fingerprint = _tool_fingerprint(tool_name, sanitized_input)
+        if tool_name in _DETERMINISTIC_TOOL_NAMES:
+            session_results = _TURN_TOOL_RESULTS.setdefault(session_id, {})
+            if fingerprint in session_results:
+                return session_results[fingerprint]
+
         result = original_tool.invoke(sanitized_input)
-        return _sanitize_result(result)
+        sanitized_result = _sanitize_result(result)
+        if tool_name in _DETERMINISTIC_TOOL_NAMES:
+            _TURN_TOOL_RESULTS.setdefault(session_id, {})[fingerprint] = sanitized_result
+        return sanitized_result
 
     return StructuredTool.from_function(
         func=wrapped_call,
@@ -154,7 +192,7 @@ def build_agent(client_id: str = "default", session_id: str = "default"):
         prior_memories=prior_memories,
     )
     checkpointer = get_checkpointer()
-    tools_to_use = [_harden_tool(tool, session_id) for tool in AGENT_TOOLS] if ENABLE_HARDENING else AGENT_TOOLS
+    tools_to_use = [_wrap_tool(tool, session_id) for tool in AGENT_TOOLS]
 
     return create_agent(
         model=model,

@@ -522,6 +522,7 @@ def _render_assistant_content(content: str) -> None:
 def process_user_message(user_input: str) -> None:
     """Send a user message to the agent and stream its response."""
     from langchain_core.messages import HumanMessage
+    from src.graph.workflow import reset_turn_tool_cache
 
     st.session_state.messages.append({"role": "user", "content": user_input})
     history_item = {
@@ -553,6 +554,9 @@ def process_user_message(user_input: str) -> None:
                     user_id=st.session_state.client_id,
                     tags=["hr-agent", st.session_state.client_id],
                     trace_name="hr-recruitment-chat",
+                    workflow="Candidate Screening",
+                    condition="chat_turn",
+                    graph_node="agent_stream",
                 )
                 thread_config = {
                     "configurable": {"thread_id": st.session_state.session_id},
@@ -564,6 +568,7 @@ def process_user_message(user_input: str) -> None:
 
                 token_count = _maybe_compress(agent, thread_config)
                 st.session_state.token_budget_used = token_count
+                reset_turn_tool_cache(st.session_state.session_id)
                 _append_agent_log(f"user_input: {user_input[:120]} (attempt={attempt})")
                 previous_chunk_key = None
                 for chunk in agent.stream(
@@ -722,6 +727,77 @@ def process_user_message(user_input: str) -> None:
                 if status_widget is not None:
                     status_widget.update(label="Agent failed", state="error")
                 break
+
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
+    history_item["assistant_output"] = full_response
+    st.session_state.query_history.append(history_item)
+    _append_query_history(history_item)
+
+
+def process_candidate_evaluation(
+    resume_path: Optional[Path],
+    linkedin_url: str,
+    website_url: str,
+    position: str,
+) -> None:
+    """Run candidate evaluation through the bounded Candidate Screening workflow."""
+    from src.database.db import get_checkpointer
+    from src.graph.screening_workflow import run_candidate_screening
+
+    prompt = build_evaluation_prompt(
+        resume_path=resume_path,
+        linkedin_url=linkedin_url,
+        website_url=website_url,
+        position=position,
+    )
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    history_item = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "session_id": st.session_state.session_id,
+        "client_id": st.session_state.client_id,
+        "position_id": position,
+        "user_input": prompt,
+        "assistant_output": "",
+    }
+
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        status_widget = st.status("Candidate screening workflow running...", expanded=True)
+        try:
+            _ensure_db_seeded(log_events=True)
+            trace_cfg = get_trace_config(
+                session_id=st.session_state.session_id,
+                user_id=st.session_state.client_id,
+                tags=["hr-agent", st.session_state.client_id, "candidate-screening"],
+                trace_name="candidate-screening",
+                workflow="Candidate Screening",
+                condition="streamlit_evaluate",
+                graph_node="candidate_screening_graph",
+            )
+            final_state = run_candidate_screening(
+                session_id=st.session_state.session_id,
+                client_id=st.session_state.client_id,
+                position_id=position,
+                resume_path=str(resume_path) if resume_path is not None else None,
+                linkedin_url=linkedin_url.strip(),
+                website_url=website_url.strip(),
+                checkpointer=get_checkpointer(),
+                trace_config=trace_cfg,
+            )
+            full_response = final_state.get("final_response", "No response generated.")
+            _render_assistant_content(full_response)
+            status_widget.update(label="Candidate screening completed", state="complete")
+            _append_agent_log(
+                "candidate_screening_completed: "
+                f"condition={final_state.get('condition', '')} node={final_state.get('graph_node', '')}"
+            )
+        except Exception as exc:
+            full_response = f"Candidate screening failed: {exc}"
+            st.error(full_response)
+            status_widget.update(label="Candidate screening failed", state="error")
+            _append_agent_log(f"candidate_screening_failed: {exc}")
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})
     history_item["assistant_output"] = full_response
@@ -928,12 +1004,12 @@ def _render_sidebar() -> None:
                 website_url=website_url,
                 position=position,
             )
-            st.session_state.pending_message = build_evaluation_prompt(
-                resume_path=resume_path,
-                linkedin_url=linkedin_url,
-                website_url=website_url,
-                position=position,
-            )
+            st.session_state.pending_evaluation = {
+                "resume_path": str(resume_path) if resume_path is not None else "",
+                "linkedin_url": linkedin_url,
+                "website_url": website_url,
+                "position": position,
+            }
 
         st.checkbox("Show live agent progress", key="show_agent_progress")
         if st.button("Clear agent logs", width="stretch"):
@@ -982,6 +1058,16 @@ def main() -> None:
                     _render_assistant_content(message["content"])
                 else:
                     st.markdown(message["content"])
+
+        if "pending_evaluation" in st.session_state:
+            pending = st.session_state.pop("pending_evaluation")
+            pending_resume = Path(pending["resume_path"]) if pending.get("resume_path") else None
+            process_candidate_evaluation(
+                resume_path=pending_resume,
+                linkedin_url=str(pending.get("linkedin_url", "")),
+                website_url=str(pending.get("website_url", "")),
+                position=str(pending.get("position", "")),
+            )
 
         if "pending_message" in st.session_state:
             pending_message = st.session_state.pop("pending_message")

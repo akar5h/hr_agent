@@ -30,3 +30,28 @@ class ATSState(TypedDict):
     scores: Dict[str, Dict[str, Any]]
     ranked_candidates: List[Dict[str, Any]]
     report: Optional[str]
+
+
+class CandidateScreeningState(TypedDict, total=False):
+    """Durable state for the bounded Candidate Screening workflow."""
+
+    session_id: str
+    client_id: str
+    position_id: str
+    resume_path: Optional[str]
+    linkedin_url: str
+    website_url: str
+    rubric: Dict[str, Any]
+    evidence: Dict[str, Any]
+    evidence_warnings: List[str]
+    candidate_name: str
+    candidate_email: str
+    candidate_id: str
+    existing_evaluation: Dict[str, Any]
+    structured_scores: Dict[str, Any]
+    evaluation_submitted: Dict[str, Any]
+    memory_written: Dict[str, Any]
+    final_response: str
+    condition: str
+    graph_node: str
+    terminal_status: str

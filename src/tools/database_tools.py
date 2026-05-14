@@ -43,6 +43,22 @@ class GetHiringRubricInput(BaseModel):
     client_id: str
 
 
+class GetCandidateByEmailInput(BaseModel):
+    """Input schema for get_candidate_by_email."""
+
+    email: str
+    client_id: str
+
+
+class GetExistingEvaluationInput(BaseModel):
+    """Input schema for get_existing_evaluation."""
+
+    position_id: str
+    client_id: str
+    candidate_id: str = ""
+    candidate_name: str = ""
+
+
 def _extract_text_from_model_response(response: Any) -> str:
     content = getattr(response, "content", [])
     if isinstance(content, str):
@@ -157,6 +173,7 @@ class SubmitEvaluationInput(BaseModel):
     overall_score: float = Field(..., ge=0.0, le=10.0)
     recommendation: Literal["STRONG_HIRE", "HIRE", "CONSIDER", "PASS"]
     reasoning: str
+    session_id: str = ""
 
 
 @tool(args_schema=SubmitEvaluationInput)
@@ -171,6 +188,7 @@ def submit_evaluation(
     overall_score: float,
     recommendation: str,
     reasoning: str,
+    session_id: str = "",
 ) -> dict:
     """Submit the final structured evaluation for a candidate.
 
@@ -179,17 +197,11 @@ def submit_evaluation(
     """
     try:
         with get_db() as conn:
-            # Look up the candidate: try name+client first, then name-only fallback
+            # Keep candidate identity inside the current client boundary.
             candidate_row = conn.execute(
                 "SELECT id FROM candidates WHERE LOWER(name) = LOWER(%s) AND client_id = %s LIMIT 1",
                 (candidate_name, client_id),
             ).fetchone()
-
-            if not candidate_row:
-                candidate_row = conn.execute(
-                    "SELECT id FROM candidates WHERE LOWER(name) = LOWER(%s) LIMIT 1",
-                    (candidate_name,),
-                ).fetchone()
 
             if candidate_row:
                 candidate_id = candidate_row["id"]
@@ -201,7 +213,8 @@ def submit_evaluation(
                     (candidate_id, candidate_name, client_id),
                 )
 
-            eval_id = str(uuid.uuid4())
+            idempotency_source = f"{client_id}:{position_id}:{candidate_id}:{session_id or 'default'}"
+            eval_id = f"eval-{uuid.uuid5(uuid.NAMESPACE_URL, idempotency_source).hex}"
             conn.execute(
                 """
                 INSERT INTO evaluations
@@ -209,7 +222,15 @@ def submit_evaluation(
                      technical_score, experience_score, culture_score,
                      communication_score, overall_score, reasoning, recommendation)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO NOTHING
+                ON CONFLICT (id) DO UPDATE SET
+                    technical_score = EXCLUDED.technical_score,
+                    experience_score = EXCLUDED.experience_score,
+                    culture_score = EXCLUDED.culture_score,
+                    communication_score = EXCLUDED.communication_score,
+                    overall_score = EXCLUDED.overall_score,
+                    reasoning = EXCLUDED.reasoning,
+                    recommendation = EXCLUDED.recommendation,
+                    evaluated_at = CURRENT_TIMESTAMP
                 """,
                 (
                     eval_id, candidate_id, position_id, client_id,
@@ -225,9 +246,78 @@ def submit_evaluation(
             "candidate_name": candidate_name,
             "overall_score": overall_score,
             "recommendation": recommendation,
+            "idempotency_key": eval_id,
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
+
+
+@tool(args_schema=GetCandidateByEmailInput)
+def get_candidate_by_email(email: str, client_id: str) -> dict:
+    """Fetch one candidate by email within the current client boundary."""
+    with get_db() as conn:
+        row = conn.execute(
+            """
+            SELECT id AS candidate_id, name, email, client_id
+            FROM candidates
+            WHERE email = %s AND client_id = %s
+            LIMIT 1
+            """,
+            (email, client_id),
+        ).fetchone()
+
+    if row is None:
+        return {"exists": False}
+    return {"exists": True, **dict(row)}
+
+
+@tool(args_schema=GetExistingEvaluationInput)
+def get_existing_evaluation(
+    position_id: str,
+    client_id: str,
+    candidate_id: str = "",
+    candidate_name: str = "",
+) -> dict:
+    """Fetch the latest evaluation for a candidate/position within a client boundary."""
+    if not candidate_id and not candidate_name:
+        return {"exists": False, "error": "candidate_id or candidate_name is required"}
+
+    params: list[Any] = [position_id, client_id]
+    candidate_filter = "e.candidate_id = %s"
+    if candidate_id:
+        params.append(candidate_id)
+    else:
+        candidate_filter = "LOWER(c.name) = LOWER(%s)"
+        params.append(candidate_name)
+
+    with get_db() as conn:
+        row = conn.execute(
+            f"""
+            SELECT
+                e.id AS evaluation_id,
+                e.candidate_id,
+                c.name AS candidate_name,
+                e.position_id,
+                e.client_id,
+                e.overall_score,
+                e.recommendation,
+                e.evaluated_at
+            FROM evaluations e
+            JOIN candidates c
+              ON c.id = e.candidate_id
+             AND c.client_id = e.client_id
+            WHERE e.position_id = %s
+              AND e.client_id = %s
+              AND {candidate_filter}
+            ORDER BY e.evaluated_at DESC
+            LIMIT 1
+            """,
+            params,
+        ).fetchone()
+
+    if row is None:
+        return {"exists": False}
+    return {"exists": True, **dict(row)}
 
 
 @tool(args_schema=GetHiringRubricInput)
