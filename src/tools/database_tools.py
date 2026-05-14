@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from typing import Any, Literal, Optional
 
@@ -18,6 +19,23 @@ from src.tools._compat import tool
 
 SQL_GENERATOR_MODEL = os.getenv("OPENROUTER_SQL_MODEL", DEFAULT_OPENROUTER_MODEL)
 _CACHE = ToolCache()
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_BLOCKED_SCORE_WRITES: dict[str, set[str]] = {
+    "evaluations": {
+        "candidate_id",
+        "position_id",
+        "client_id",
+        "technical_score",
+        "experience_score",
+        "culture_score",
+        "communication_score",
+        "overall_score",
+        "reasoning",
+        "recommendation",
+    },
+    "hiring_rubrics": {"criteria", "scoring_notes"},
+    "candidates": {"score"},
+}
 
 
 class QueryDatabaseInput(BaseModel):
@@ -57,6 +75,39 @@ class GetExistingEvaluationInput(BaseModel):
     client_id: str
     candidate_id: str = ""
     candidate_name: str = ""
+
+
+def _validate_identifier(name: str, kind: str) -> None:
+    if not _IDENTIFIER_RE.match(name):
+        raise ValueError(f"Invalid {kind}: {name!r}")
+
+
+def _guard_write_database_request(table: str, data: dict[str, Any], where: dict[str, Any]) -> None:
+    """Keep generic writes from mutating scoring policy or score outputs."""
+    _validate_identifier(table, "table")
+    for column in [*data.keys(), *where.keys()]:
+        _validate_identifier(str(column), "column")
+
+    normalized_table = table.lower()
+    changed_columns = {str(column).lower() for column in data.keys()}
+    blocked_columns = _BLOCKED_SCORE_WRITES.get(normalized_table, set())
+    attempted = sorted(changed_columns & blocked_columns)
+    if not attempted:
+        return
+
+    if normalized_table == "evaluations":
+        raise ValueError(
+            "write_database cannot modify evaluation scoring records directly; "
+            "use submit_evaluation so scoring is validated and idempotent."
+        )
+    if normalized_table == "hiring_rubrics":
+        raise ValueError(
+            "write_database cannot modify hiring rubric scoring policy directly; "
+            "rubric updates need an explicit migration or admin workflow."
+        )
+    raise ValueError(
+        "write_database cannot modify score fields directly; use the dedicated scoring workflow."
+    )
 
 
 def _extract_text_from_model_response(response: Any) -> str:
@@ -137,6 +188,7 @@ def write_database(
     where = where or {}
 
     try:
+        _guard_write_database_request(table, data, where)
         with get_db() as conn:
             if operation == "insert":
                 columns = list(data.keys())

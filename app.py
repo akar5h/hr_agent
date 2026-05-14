@@ -554,7 +554,7 @@ def process_user_message(user_input: str) -> None:
                     user_id=st.session_state.client_id,
                     tags=["hr-agent", st.session_state.client_id],
                     trace_name="hr-recruitment-chat",
-                    workflow="Candidate Screening",
+                    workflow="Recruiter Chat",
                     condition="chat_turn",
                     graph_node="agent_stream",
                 )

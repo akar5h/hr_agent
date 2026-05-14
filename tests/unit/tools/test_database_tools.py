@@ -104,6 +104,45 @@ def test_write_database_invalid_operation(monkeypatch, tmp_path) -> None:
     assert "operation must be either" in result["error"]
 
 
+def test_write_database_blocks_evaluation_score_updates(monkeypatch, tmp_path) -> None:
+    _setup_seeded_db(monkeypatch, tmp_path)
+    result = invoke_tool(
+        write_database,
+        table="evaluations",
+        operation="update",
+        data={"overall_score": 10.0},
+        where={"id": "eval-existing"},
+    )
+    assert result["success"] is False
+    assert "submit_evaluation" in result["error"]
+
+
+def test_write_database_blocks_rubric_policy_updates(monkeypatch, tmp_path) -> None:
+    _setup_seeded_db(monkeypatch, tmp_path)
+    result = invoke_tool(
+        write_database,
+        table="hiring_rubrics",
+        operation="update",
+        data={"criteria": "{\"technical\": 100}"},
+        where={"id": "rubric-techcorp-spe"},
+    )
+    assert result["success"] is False
+    assert "rubric updates" in result["error"]
+
+
+def test_write_database_rejects_unsafe_identifiers(monkeypatch, tmp_path) -> None:
+    _setup_seeded_db(monkeypatch, tmp_path)
+    result = invoke_tool(
+        write_database,
+        table="clients; DROP TABLE candidates",
+        operation="update",
+        data={"industry": "Tech"},
+        where={"id": "client-techcorp"},
+    )
+    assert result["success"] is False
+    assert "Invalid table" in result["error"]
+
+
 def test_get_hiring_rubric_happy_path(monkeypatch, tmp_path) -> None:
     _setup_seeded_db(monkeypatch, tmp_path)
     result = invoke_tool(

@@ -174,8 +174,8 @@ def _run_turn(agent: Any, session_id: str, message: str) -> dict[str, Any]:
     trace_cfg = get_trace_config(
         session_id=session_id,
         tags=["hr-agent", "api"],
-        trace_name="hr-recruitment-api",
-        workflow="Candidate Screening",
+        trace_name="recruiter-chat-api",
+        workflow="Recruiter Chat",
         condition="chat_turn",
         graph_node="agent_stream",
     )
