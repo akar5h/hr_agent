@@ -7,6 +7,7 @@ import hashlib
 from typing import Any
 
 from langchain.agents import create_agent
+from langchain_core.messages import SystemMessage
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
@@ -14,9 +15,15 @@ from src.database.db import get_checkpointer, get_db
 from src.observability.decorators import traced
 from src.guardrails.rate_limiter import record_tool_call
 from src.guardrails.sanitizer import ENABLE_HARDENING, sanitize
+from src.guardrails.session_context import session_scope
 from src.graph.ats_subgraph import build_ats_agent
-from src.llm import build_chat_model
-from src.prompts.evaluation import build_system_prompt
+from src.llm import (
+    DEFAULT_OPENROUTER_MODEL,
+    _model_supports_cache_control,
+    build_chat_model,
+    prompt_cache_enabled,
+)
+from src.prompts.evaluation import build_system_prompt, build_system_prompt_blocks
 from src.tools import ALL_TOOLS
 from src.tools._compat import tool
 from src.tools.memory_tools import _load_client_memories
@@ -148,18 +155,19 @@ def _sanitize_result(value: Any) -> Any:
     return value
 
 
-def _wrap_tool(original_tool: Any, session_id: str) -> Any:
+def _wrap_tool(original_tool: Any, session_id: str, client_id: str = "default") -> Any:
     def wrapped_call(**kwargs: Any) -> Any:
-        record_tool_call(session_id)
-        sanitized_input = _sanitize_payload(kwargs)
         tool_name = getattr(original_tool, "name", "wrapped_tool")
+        record_tool_call(session_id, tool_name)
+        sanitized_input = _sanitize_payload(kwargs)
         fingerprint = _tool_fingerprint(tool_name, sanitized_input)
         if tool_name in _DETERMINISTIC_TOOL_NAMES:
             session_results = _TURN_TOOL_RESULTS.setdefault(session_id, {})
             if fingerprint in session_results:
                 return session_results[fingerprint]
 
-        result = original_tool.invoke(sanitized_input)
+        with session_scope(client_id=client_id, session_id=session_id):
+            result = original_tool.invoke(sanitized_input)
         sanitized_result = _sanitize_result(result)
         if tool_name in _DETERMINISTIC_TOOL_NAMES:
             _TURN_TOOL_RESULTS.setdefault(session_id, {})[fingerprint] = sanitized_result
@@ -186,13 +194,25 @@ def build_agent(client_id: str = "default", session_id: str = "default"):
         client_id=client_id,
         query_context=f"session:{session_id}",
     )
-    system_prompt = build_system_prompt(
-        client_id=client_id,
-        session_id=session_id,
-        prior_memories=prior_memories,
-    )
+    import os
+    primary_model_name = os.getenv("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
+    if prompt_cache_enabled() and _model_supports_cache_control(primary_model_name):
+        system_prompt: Any = SystemMessage(
+            content=build_system_prompt_blocks(
+                client_id=client_id,
+                session_id=session_id,
+                prior_memories=prior_memories,
+                model_name=primary_model_name,
+            )
+        )
+    else:
+        system_prompt = build_system_prompt(
+            client_id=client_id,
+            session_id=session_id,
+            prior_memories=prior_memories,
+        )
     checkpointer = get_checkpointer()
-    tools_to_use = [_wrap_tool(tool, session_id) for tool in AGENT_TOOLS]
+    tools_to_use = [_wrap_tool(tool, session_id, client_id) for tool in AGENT_TOOLS]
 
     return create_agent(
         model=model,

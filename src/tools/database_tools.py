@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from src.cache.tool_cache import ToolCache
 from src.database.db import get_db
+from src.guardrails.session_context import get_session_client_id
 from src.observability.decorators import traced
 from src.database.schema import CREATE_TABLES_SQL
 from src.llm import DEFAULT_OPENROUTER_MODEL, build_chat_model
@@ -35,6 +36,17 @@ _BLOCKED_SCORE_WRITES: dict[str, set[str]] = {
     },
     "hiring_rubrics": {"criteria", "scoring_notes"},
     "candidates": {"score"},
+}
+# Tables that carry a client_id column and must be tenant-scoped on writes.
+_CLIENT_SCOPED_TABLES: set[str] = {
+    "positions",
+    "hiring_rubrics",
+    "candidates",
+    "evaluations",
+    "candidate_decisions",
+    "outbound_emails",
+    "agent_memory",
+    "audit_events",
 }
 
 
@@ -82,8 +94,14 @@ def _validate_identifier(name: str, kind: str) -> None:
         raise ValueError(f"Invalid {kind}: {name!r}")
 
 
-def _guard_write_database_request(table: str, data: dict[str, Any], where: dict[str, Any]) -> None:
-    """Keep generic writes from mutating scoring policy or score outputs."""
+def _guard_write_database_request(
+    table: str,
+    data: dict[str, Any],
+    where: dict[str, Any],
+    *,
+    session_client_id: str | None = None,
+) -> None:
+    """Keep generic writes from mutating scoring policy, score outputs, or other tenants."""
     _validate_identifier(table, "table")
     for column in [*data.keys(), *where.keys()]:
         _validate_identifier(str(column), "column")
@@ -92,22 +110,30 @@ def _guard_write_database_request(table: str, data: dict[str, Any], where: dict[
     changed_columns = {str(column).lower() for column in data.keys()}
     blocked_columns = _BLOCKED_SCORE_WRITES.get(normalized_table, set())
     attempted = sorted(changed_columns & blocked_columns)
-    if not attempted:
-        return
+    if attempted:
+        if normalized_table == "evaluations":
+            raise ValueError(
+                "write_database cannot modify evaluation scoring records directly; "
+                "use submit_evaluation so scoring is validated and idempotent."
+            )
+        if normalized_table == "hiring_rubrics":
+            raise ValueError(
+                "write_database cannot modify hiring rubric scoring policy directly; "
+                "rubric updates need an explicit migration or admin workflow."
+            )
+        raise ValueError(
+            "write_database cannot modify score fields directly; use the dedicated scoring workflow."
+        )
 
-    if normalized_table == "evaluations":
-        raise ValueError(
-            "write_database cannot modify evaluation scoring records directly; "
-            "use submit_evaluation so scoring is validated and idempotent."
-        )
-    if normalized_table == "hiring_rubrics":
-        raise ValueError(
-            "write_database cannot modify hiring rubric scoring policy directly; "
-            "rubric updates need an explicit migration or admin workflow."
-        )
-    raise ValueError(
-        "write_database cannot modify score fields directly; use the dedicated scoring workflow."
-    )
+    if normalized_table in _CLIENT_SCOPED_TABLES:
+        if session_client_id:
+            for source, payload in (("data", data), ("where", where)):
+                if "client_id" in payload and str(payload["client_id"]) != session_client_id:
+                    raise ValueError(
+                        f"write_database refused: {source}.client_id "
+                        f"({payload['client_id']!r}) does not match session client "
+                        f"({session_client_id!r})."
+                    )
 
 
 def _extract_text_from_model_response(response: Any) -> str:
@@ -188,7 +214,9 @@ def write_database(
     where = where or {}
 
     try:
-        _guard_write_database_request(table, data, where)
+        _guard_write_database_request(
+            table, data, where, session_client_id=get_session_client_id()
+        )
         with get_db() as conn:
             if operation == "insert":
                 columns = list(data.keys())

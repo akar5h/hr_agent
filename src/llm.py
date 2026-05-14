@@ -8,9 +8,18 @@ from langchain_openai import ChatOpenAI
 
 from src.observability.decorators import traced
 
-DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v3.2"
+DEFAULT_OPENROUTER_MODEL = "anthropic/claude-3.5-haiku"
 DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_OPENROUTER_FALLBACK_MODEL = "deepseek/deepseek-chat"
+DEFAULT_OPENROUTER_FALLBACK_MODEL = "deepseek/deepseek-v3.2"
+
+
+def prompt_cache_enabled() -> bool:
+    """Whether to attach Anthropic-style cache_control blocks to the system prompt."""
+    return os.getenv("ENABLE_PROMPT_CACHE", "true").lower() == "true"
+
+
+def _model_supports_cache_control(model_name: str) -> bool:
+    return model_name.startswith("anthropic/")
 
 
 @traced(name="build-chat-model")
