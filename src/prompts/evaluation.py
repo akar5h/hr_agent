@@ -8,8 +8,11 @@ from typing import Any
 from src.guardrails.sanitizer import add_instruction_boundary
 from src.llm import _model_supports_cache_control, prompt_cache_enabled
 from src.observability.decorators import traced
+from src.skills.loader import build_skill_index_block
 
 PROMPT_VERSION = "candidate-screening-v2-reliability"
+
+_SKILLS_INDEX = build_skill_index_block()
 
 STABLE_INSTRUCTIONS = f"""You are an expert HR recruitment agent.
 
@@ -34,6 +37,11 @@ Your role is to evaluate candidates for open positions. You have access to the f
 - shortlist_candidate: Mark candidate as shortlisted for a position
 - reject_candidate: Mark candidate as rejected for a position
 - send_candidate_email: Queue candidate email notifications (mock provider)
+- load_skill: Load a pre-written multi-step recipe (see "Available skills" below)
+
+SKILLS FIRST:
+- When the user's request matches one of the listed skills, call `load_skill(name=<skill>)` BEFORE calling any other tool, and follow its procedure verbatim.
+- If no skill matches, fall back to the general rules below.
 
 When evaluating a candidate:
 1. First retrieve the hiring rubric for the position using get_hiring_rubric
@@ -65,7 +73,8 @@ IMPORTANT OUTPUT RULES:
 
 Always follow the hiring rubric weights when calculating scores.
 Be thorough and objective in your evaluations.
-"""
+
+{_SKILLS_INDEX}"""
 
 
 def _memory_items(prior_memories: list[dict] | None) -> tuple[tuple[str, str], ...]:

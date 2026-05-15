@@ -48,8 +48,9 @@ def test_build_agent_returns_compiled_graph_like_object(monkeypatch) -> None:
 
 def test_build_agent_uses_all_tools() -> None:
     workflow = _import_workflow_or_skip()
-    assert len(ALL_TOOLS) == 17
-    assert len(workflow.AGENT_TOOLS) == 18
+    assert len(ALL_TOOLS) == 18
+    # AGENT_TOOLS = ALL_TOOLS + trigger_ats_ranking
+    assert len(workflow.AGENT_TOOLS) == 19
 
 
 def test_system_prompt_includes_client_id_and_session_id() -> None:

@@ -1,5 +1,6 @@
 """Tool exports for agent registration."""
 
+from src.skills.tool import load_skill
 from src.tools.database_tools import (
     get_candidate_by_email,
     get_existing_evaluation,
@@ -35,6 +36,7 @@ ALL_TOOLS = [
     shortlist_candidate,
     reject_candidate,
     send_candidate_email,
+    load_skill,
 ]
 
 __all__ = ["ALL_TOOLS"]
