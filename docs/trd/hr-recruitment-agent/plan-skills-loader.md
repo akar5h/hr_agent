@@ -89,6 +89,163 @@ These were settled with the user before drafting:
 
 ---
 
+## 4a. Architecture
+
+Four moving parts. Two lifecycles — **import-time** (one-shot, runs when the Python module graph loads) and **runtime** (every chat turn).
+
+### Components
+
+| Component | Lives at | Lifecycle | Responsibility |
+|---|---|---|---|
+| **SKILL files** (`*.md`) | `src/skills/<name>.md` | Static on disk | Source of truth for each recipe. Frontmatter is the contract, body is the procedure. |
+| **Loader** (`loader.py`) | `src/skills/loader.py` | Imported once | Globs `*.md`, parses frontmatter+body into frozen `Skill` dataclasses, caches the registry. Fail-soft per file. |
+| **Registry** (in-memory dict) | `src.skills.loader._REGISTRY` | Process lifetime | `dict[str, Skill]`. Built lazily on first `get_skill_registry()` call. Never mutated after build. |
+| **`load_skill` tool** | `src/skills/tool.py` | Per turn | Agent-facing read of the registry. Pure function, no DB, no network. |
+| **Index block** | Injected into `STABLE_INSTRUCTIONS` | Import-time | Short bulleted list of names + descriptions. Lives in the cached half of the system prompt. |
+
+### Lifecycle 1 — import time
+
+```
+src.prompts.evaluation
+  └─ from src.skills.loader import build_skill_index_block
+       └─ get_skill_registry()           # first call
+            └─ _load_all(src/skills/)
+                 ├─ glob *.md → 5 files
+                 ├─ parse YAML frontmatter + markdown body for each
+                 ├─ validate required fields (name/description/version)
+                 ├─ fail-soft on broken files (warn + skip)
+                 └─ return frozen dict[name, Skill]
+       └─ build_skill_index_block()      # renders ~6 lines of markdown
+       └─ inlined into STABLE_INSTRUCTIONS
+       └─ shipped to the LLM inside Phase-A's cache_control: ephemeral block
+```
+
+After this point the registry is read-only and the prompt prefix is stable for the entire process. Adding/removing a skill requires a restart, which is by design.
+
+### Lifecycle 2 — runtime (per chat turn)
+
+```
+user → /sessions/{id}/chat → build_agent(client_id, session_id)
+                                  └─ build_system_prompt_blocks(...)
+                                       └─ includes the skills index from import time
+                              → agent.invoke({messages:[user_msg]})
+                                  ├─ LLM sees system prompt with skill list
+                                  ├─ LLM picks a skill from the description
+                                  ├─ LLM calls load_skill(name="evaluate_candidate")
+                                  │     └─ _wrap_tool sets session_scope(client_id, session_id)
+                                  │     └─ load_skill reads registry → returns body
+                                  │     └─ result cached in _TURN_TOOL_RESULTS
+                                  ├─ LLM follows the body's procedure verbatim
+                                  └─ executes tool DAG: get_hiring_rubric → … → submit_evaluation
+```
+
+### Mermaid — full lifecycle
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant FS as src/skills/*.md
+    participant L as loader.py
+    participant R as registry (dict)
+    participant P as STABLE_INSTRUCTIONS
+    participant LLM as Chat LLM
+    participant T as load_skill tool
+    participant A as Other agent tools
+
+    Note over FS,P: Import time (once per process)
+    L->>FS: glob *.md
+    FS-->>L: 5 files
+    L->>L: parse YAML + body, validate
+    L->>R: populate frozen Skill registry
+    L->>P: inject "## Available skills" index block
+    Note over P: index lives inside cache_control: ephemeral block
+
+    Note over LLM,A: Runtime (every chat turn)
+    LLM->>LLM: read system prompt (cached prefix + dynamic suffix)
+    LLM->>LLM: pick skill from description
+    LLM->>T: load_skill(name="evaluate_candidate")
+    T->>R: registry.get("evaluate_candidate")
+    R-->>T: Skill(body=..., tools=[...])
+    T-->>LLM: {name, version, tools, body}
+    LLM->>A: get_hiring_rubric(...)
+    A-->>LLM: rubric JSON
+    LLM->>A: parallel_gather_candidate_info(...)
+    A-->>LLM: evidence
+    LLM->>A: submit_evaluation(...)
+    A-->>LLM: {success, evaluation_id, idempotent_replay}
+    LLM->>A: store_memory(...)
+    LLM-->>LLM: final user-facing reply
+```
+
+### Mermaid — component view
+
+```mermaid
+flowchart LR
+    subgraph Disk["Disk (src/skills/)"]
+        E[evaluate_candidate.md]
+        D[decide_candidate.md]
+        O[outreach_candidate.md]
+        Rk[rank_position.md]
+        Rc[recall_client_context.md]
+    end
+
+    subgraph Boot["Import time"]
+        L[loader.py<br/>YAML+MD parser]
+        REG[(Registry<br/>frozen dict)]
+        IDX[build_skill_index_block]
+    end
+
+    subgraph Prompt["System prompt (cached)"]
+        STABLE["STABLE_INSTRUCTIONS<br/>+ skills index"]
+    end
+
+    subgraph Runtime["Chat turn"]
+        LLM[LLM]
+        TOOL[load_skill tool]
+        OTHER[Other 17 tools]
+    end
+
+    E --> L
+    D --> L
+    O --> L
+    Rk --> L
+    Rc --> L
+    L --> REG
+    REG --> IDX
+    IDX --> STABLE
+    STABLE -. system prompt .-> LLM
+    LLM -- "load_skill(name)" --> TOOL
+    TOOL -- "read" --> REG
+    TOOL -- "body" --> LLM
+    LLM -- "follow recipe" --> OTHER
+```
+
+### Where this sits in the bigger picture
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  Streamlit (app.py) / FastAPI (server.py)                      │
+│      └─ get_or_create_agent → build_agent(client, session)     │
+│             ├─ build_chat_model      ← src/llm.py (Phase A)    │
+│             ├─ build_system_prompt_blocks                      │
+│             │     └─ STABLE_INSTRUCTIONS + skills index ←─┐    │
+│             │     └─ cache_control: ephemeral block       │    │
+│             ├─ wrap each tool with session_scope          │    │
+│             │     + per-turn dedup + sanitizer            │    │
+│             └─ create_agent(model, tools, system_prompt)  │    │
+│                                                            │    │
+│                          ┌─────────────────────────────────┘    │
+│                          │ injected at import time             │
+│                          ▼                                      │
+│                  src/skills/loader.py                           │
+│                  ├─ scans src/skills/*.md                       │
+│                  ├─ frozen Skill registry                       │
+│                  └─ load_skill tool reads from it               │
+└────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## 5. File layout
 
 ```
@@ -319,14 +476,18 @@ All tests are DB-free.
 
 ## 13. Risks and mitigations
 
-| Risk | Mitigation |
-|---|---|
-| Model skips `load_skill` and reasons from scratch | One system-prompt line is dedicated to the rule. With `claude-3.5-haiku` primary this is reliable; on the deepseek fallback it may be weaker — measurable via trace deviation grading (future). |
-| Skill description quality determines selection accuracy | Treat descriptions like API contracts. The verification test enforces a length cap so they stay tight. |
-| Skill body drift from real tool surface | `tools` frontmatter list is cross-checked against `ALL_TOOLS` in `test_skill_content.py` — typo in a tool name fails CI. |
-| Cache invalidation when adding/removing a skill | Acceptable — one warm-up turn after deploy. Skill bodies themselves are NOT cached (loaded via tool result), so no cache poisoning. |
-| Skill becomes outdated after a tool signature change | Same as any prompt drift. Version bump on the skill + trace metadata makes regressions visible. |
-| Hostile user asks the model to "ignore the skill and just do X" | Existing prompt-injection rules in `STABLE_INSTRUCTIONS` already address tool-result content. The skill body is treated as another tool result subject to the same rules. |
+Priority legend: **H** = blocks release / loses correctness or money. **M** = degrades quality, recoverable. **L** = annoyance or long-tail.
+
+| Priority | Risk (one-liner) | Mitigation |
+|---|---|---|
+| **H** | Model skips `load_skill` and reasons from scratch, defeating the whole point. | Dedicated `SKILLS FIRST` rule in the cached system prompt + cache-friendly Anthropic primary. Add trace-deviation grading later. |
+| **H** | Skill body drifts from the real tool surface (renamed tool, removed arg) and the model executes a broken recipe. | `test_skill_content.py` cross-checks every `tools:` frontmatter entry against live `ALL_TOOLS` — typos fail CI. Bump skill `version` whenever the recipe changes. |
+| **M** | Hostile user instructs the model to ignore the loaded skill and improvise. | Skill body arrives as a tool result, subject to the existing untrusted-content rule in `STABLE_INSTRUCTIONS`. Phase-A sanitizer also normalises the payload. |
+| **M** | Skill description quality determines selection accuracy — vague descriptions cause wrong-skill picks. | Treat descriptions like API contracts. `DESCRIPTION_MAX_CHARS=200` cap enforced in tests so they stay tight and comparable. |
+| **M** | Loader fails silently on a malformed `.md` and the skill disappears from the index. | Fail-soft path logs `skill_load_failed` with file + reason; CI-grade `test_real_registry_has_five_skills` catches missing entries. |
+| **L** | Cache invalidation after adding/removing/editing any skill. | Acceptable — one warm-up turn after deploy. Skill bodies are NOT in the cached block, so editing a body doesn't invalidate. |
+| **L** | Skill goes stale after a tool signature change without a recipe update. | Version field + trace metadata (`skill_version`) makes drift visible in dashboards. Same drift risk as any prompt. |
+| **L** | Two contributors create skills with the same `name`. | `_load_all` keeps the first (sorted order) and logs `skill_duplicate_name`; `test_load_all_drops_duplicate_names` regresses this. |
 
 ---
 
