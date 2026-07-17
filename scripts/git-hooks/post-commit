@@ -1,0 +1,18 @@
+#!/bin/sh
+# Decision memory per commit — see CLAUDE.md "Decision memory per commit".
+# Scaffolds an entry in the gitignored .decision-memory/ journal; the committer
+# (human or agent) then fills Why/Evidence/Trace.
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
+[ "$branch" = "HEAD" ] && branch="detached"
+safe=$(printf '%s' "$branch" | tr '/' '-')
+dir="$(git rev-parse --show-toplevel)/.decision-memory"
+mkdir -p "$dir"
+file="$dir/$(date +%Y-%m-%d)-$safe.md"
+short=$(git log -1 --format=%h)
+subject=$(git log -1 --format=%s)
+{
+  printf '\n## %s — %s\n' "$short" "$subject"
+  printf -- '- Why: TODO\n'
+  printf -- '- Evidence: TODO\n'
+  printf -- '- Trace: TODO\n'
+} >> "$file"

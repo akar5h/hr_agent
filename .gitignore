@@ -18,3 +18,6 @@ logs/
 
 # Claude
 .claude/
+
+# Session decision memory (local-only, never pushed — see CLAUDE.md "Decision memory per commit")
+.decision-memory/
