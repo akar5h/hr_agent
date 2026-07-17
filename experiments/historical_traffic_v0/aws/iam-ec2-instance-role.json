@@ -1,0 +1,94 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BedrockInvoke",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:*::foundation-model/*",
+        "arn:aws:bedrock:*:854847082059:inference-profile/*",
+        "arn:aws:bedrock:*:854847082059:application-inference-profile/*"
+      ]
+    },
+    {
+      "Sid": "BedrockAndQuotaDiscovery",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:ListFoundationModels",
+        "bedrock:GetFoundationModel",
+        "bedrock:ListInferenceProfiles",
+        "bedrock:GetInferenceProfile",
+        "servicequotas:GetServiceQuota",
+        "servicequotas:ListServiceQuotas"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "S3PullCodePushArtifacts",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::hr-traffic-v0-854847082059",
+        "arn:aws:s3:::hr-traffic-v0-854847082059/*"
+      ]
+    },
+    {
+      "Sid": "SsmReadSecrets",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": "arn:aws:ssm:ap-south-1:854847082059:parameter/hr-traffic-v0/*"
+    },
+    {
+      "Sid": "KmsDecryptSecrets",
+      "Effect": "Allow",
+      "Action": [ "kms:Decrypt" ],
+      "Resource": "arn:aws:kms:ap-south-1:854847082059:key/KMS_KEY_ID"
+    },
+    {
+      "Sid": "CloudWatchLogsWrite",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": "arn:aws:logs:ap-south-1:854847082059:log-group:/hr-traffic-v0/*"
+    },
+    {
+      "Sid": "SsmSessionManagerAgent",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:UpdateInstanceInformation",
+        "ssmmessages:CreateControlChannel",
+        "ssmmessages:CreateDataChannel",
+        "ssmmessages:OpenControlChannel",
+        "ssmmessages:OpenDataChannel",
+        "ec2messages:GetMessages",
+        "ec2messages:AcknowledgeMessage"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SelfTerminateFailsafe",
+      "Effect": "Allow",
+      "Action": [ "ec2:TerminateInstances" ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": { "aws:ResourceTag/project": "hr-traffic-v0" }
+      }
+    }
+  ]
+}
