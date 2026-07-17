@@ -15,10 +15,10 @@ from src.database.db import get_db
 from src.guardrails.session_context import get_session_client_id
 from src.observability.decorators import traced
 from src.database.schema import CREATE_TABLES_SQL
-from src.llm import DEFAULT_OPENROUTER_MODEL, build_chat_model
+from src.llm import DEFAULT_SQLGEN_MODEL, build_chat_model
 from src.tools._compat import tool
 
-SQL_GENERATOR_MODEL = os.getenv("OPENROUTER_SQL_MODEL", DEFAULT_OPENROUTER_MODEL)
+SQL_GENERATOR_MODEL = os.getenv("BEDROCK_SQLGEN_MODEL", DEFAULT_SQLGEN_MODEL)
 _CACHE = ToolCache()
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _BLOCKED_SCORE_WRITES: dict[str, set[str]] = {

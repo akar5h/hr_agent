@@ -195,7 +195,7 @@ def build_agent(client_id: str = "default", session_id: str = "default"):
         query_context=f"session:{session_id}",
     )
     import os
-    primary_model_name = os.getenv("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
+    primary_model_name = os.getenv("BEDROCK_AGENT_MODEL", DEFAULT_OPENROUTER_MODEL)
     if prompt_cache_enabled() and _model_supports_cache_control(primary_model_name):
         system_prompt: Any = SystemMessage(
             content=build_system_prompt_blocks(
