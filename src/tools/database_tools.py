@@ -270,10 +270,12 @@ def submit_evaluation(
     reasoning: str,
     session_id: str = "",
 ) -> dict:
-    """Submit the final structured evaluation for a candidate.
+    """Submit the structured rubric scoring for a candidate.
 
-    MUST be called as the last step of every candidate evaluation.
-    Writes scores to the evaluations table and returns a confirmation.
+    This is the last step of SCORING, not necessarily of the task. Writes scores to the
+    evaluations table and returns a confirmation. If the user's goal is a decision
+    (shortlist / reject / advance / decline), a submitted score alone does NOT commit
+    the decision — follow this call with shortlist_candidate or reject_candidate.
     """
     try:
         with get_db() as conn:

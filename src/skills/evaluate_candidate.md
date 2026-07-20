@@ -37,7 +37,8 @@ The user wants you to evaluate, score, rate, or determine fit for a candidate ag
 6. Score on each rubric dimension on a 0-10 scale: `technical_score`, `experience_score`, `culture_score`, `communication_score`. Compute `overall_score` using the rubric weights.
 7. Call `submit_evaluation(candidate_name=..., position_id=..., client_id=<bound>, technical_score=..., experience_score=..., culture_score=..., communication_score=..., overall_score=..., recommendation=..., reasoning=..., session_id=<bound>)`. This is mandatory and idempotent on (client, position, candidate, session).
 8. After `submit_evaluation` returns `success: true`, call `store_memory(session_id=<bound>, client_id=<bound>, memory_key="eval_summary:<candidate_name>", memory_value="Score <overall>/10, <recommendation>: <one-line summary>")`.
-9. Write a 3-5 sentence final reply to the user with the headline score and recommendation.
+9. Decision follow-through: submitting a score is NOT a decision. If the user's request was to shortlist, reject, advance, move forward with, or decline the candidate, load `decide_candidate` and follow it to commit the decision (`shortlist_candidate` / `reject_candidate`) — the choice is dictated by the user's request, not the score. If the user only asked to evaluate / score / rate / assess fit, do not commit an unrequested decision.
+10. Write a 3-5 sentence final reply to the user with the headline score and recommendation (and, if a decision was committed, its outcome and idempotency status).
 
 ## Gotchas
 
