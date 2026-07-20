@@ -18,19 +18,24 @@ from src.tools.database_tools import submit_evaluation
 SKILL_PATH = Path(__file__).resolve().parents[2] / "src" / "skills" / "evaluate_candidate.md"
 
 
+def _flat(text: str) -> str:
+    """Collapse whitespace so assertions are robust to source line-wrapping."""
+    return " ".join(text.split())
+
+
 def test_prompt_version_bumped_for_release() -> None:
     assert PROMPT_VERSION == "candidate-screening-v3-decision-followthrough"
 
 
 def test_system_prompt_drops_terminal_submit_evaluation_framing() -> None:
-    prompt = build_system_prompt(client_id="c", session_id="s")
+    prompt = _flat(build_system_prompt(client_id="c", session_id="s"))
     # The two lines that taught the model scoring == end-of-task must be gone.
     assert "Always call submit_evaluation as the last tool" not in prompt
     assert "final response MUST come AFTER calling submit_evaluation" not in prompt
 
 
 def test_system_prompt_has_conditional_decision_followthrough() -> None:
-    prompt = build_system_prompt(client_id="c", session_id="s")
+    prompt = _flat(build_system_prompt(client_id="c", session_id="s"))
     # Decision must follow eval when the goal is a decision...
     assert "shortlist_candidate or reject_candidate" in prompt
     assert "a submitted score alone does NOT commit a decision" in prompt
@@ -40,14 +45,14 @@ def test_system_prompt_has_conditional_decision_followthrough() -> None:
 
 
 def test_submit_evaluation_docstring_reframed() -> None:
-    desc = submit_evaluation.description  # @tool description derives from the docstring
+    desc = _flat(submit_evaluation.description)  # @tool description derives from the docstring
     assert "last step of SCORING, not necessarily of the task" in desc
     assert "follow this call with shortlist_candidate or reject_candidate" in desc
     assert "MUST be called as the last step of every candidate evaluation" not in desc
 
 
 def test_evaluate_candidate_skill_has_decision_followthrough() -> None:
-    body = SKILL_PATH.read_text(encoding="utf-8")
+    body = _flat(SKILL_PATH.read_text(encoding="utf-8"))
     assert "Decision follow-through" in body
     assert "load `decide_candidate`" in body
     assert "do not commit an unrequested decision" in body
