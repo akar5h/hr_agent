@@ -244,6 +244,8 @@ def init_session_state() -> None:
         st.session_state.compression_model = None
     if "pending_session_open" not in st.session_state:
         st.session_state.pending_session_open = None
+    if "last_screening" not in st.session_state:
+        st.session_state.last_screening = None
 
 
 def _extract_text(content: Any) -> str:
@@ -800,13 +802,141 @@ def process_candidate_evaluation(
             _append_agent_log(f"candidate_screening_failed: {exc}")
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})
+    st.session_state.last_screening = {
+        "response": full_response,
+        "position": position,
+        "timestamp": history_item["timestamp"],
+    }
     history_item["assistant_output"] = full_response
     st.session_state.query_history.append(history_item)
     _append_query_history(history_item)
 
 
-def _render_history_window() -> None:
-    st.subheader("Sessions")
+def _get_positions_with_rubrics_for_client(client_id: str) -> list[dict[str, str]]:
+    """Open positions + their rubric criteria, scoped to a single client."""
+    _ensure_db_seeded(log_events=False)
+    from src.database.db import get_db
+
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                p.id AS position_id,
+                p.title,
+                p.status,
+                COALESCE(p.description, '') AS description,
+                COALESCE(hr.criteria, '') AS criteria
+            FROM positions p
+            LEFT JOIN hiring_rubrics hr
+              ON hr.position_id = p.id
+             AND hr.client_id = p.client_id
+            WHERE p.client_id = %s
+            ORDER BY p.title ASC
+            """,
+            (client_id,),
+        ).fetchall()
+
+    return [
+        {
+            "position_id": str(row["position_id"]),
+            "title": str(row["title"]),
+            "status": str(row["status"]),
+            "description": str(row["description"]),
+            "criteria": str(row["criteria"]),
+        }
+        for row in rows
+    ]
+
+
+def _fmt_score(value: Any) -> str:
+    if value is None or value == "":
+        return ""
+    try:
+        return f"{float(value):.1f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _get_candidates_for_client(client_id: str) -> list[dict[str, str]]:
+    """Candidate records joined with their evaluations, scoped via evaluations.client_id."""
+    _ensure_db_seeded(log_events=False)
+    from src.database.db import get_db
+
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                c.name,
+                COALESCE(c.email, '') AS email,
+                e.position_id,
+                e.technical_score,
+                e.experience_score,
+                e.culture_score,
+                e.communication_score,
+                e.overall_score,
+                COALESCE(e.recommendation, '') AS recommendation,
+                e.evaluated_at
+            FROM evaluations e
+            JOIN candidates c ON c.id = e.candidate_id
+            WHERE e.client_id = %s
+            ORDER BY e.evaluated_at DESC
+            """,
+            (client_id,),
+        ).fetchall()
+
+    return [
+        {
+            "name": str(row["name"]),
+            "email": str(row["email"]),
+            "position": str(row["position_id"]),
+            "technical": _fmt_score(row["technical_score"]),
+            "experience": _fmt_score(row["experience_score"]),
+            "culture": _fmt_score(row["culture_score"]),
+            "communication": _fmt_score(row["communication_score"]),
+            "overall": _fmt_score(row["overall_score"]),
+            "recommendation": str(row["recommendation"]),
+            "evaluated_at": str(row["evaluated_at"] or "")[:19],
+        }
+        for row in rows
+    ]
+
+
+def _get_decisions_for_client(client_id: str) -> list[dict[str, str]]:
+    """Shortlist/reject decisions joined with candidate names, scoped to a client."""
+    _ensure_db_seeded(log_events=False)
+    from src.database.db import get_db
+
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                c.name,
+                d.position_id,
+                d.decision,
+                COALESCE(d.reason, '') AS reason,
+                d.decided_at
+            FROM candidate_decisions d
+            JOIN candidates c ON c.id = d.candidate_id
+            WHERE d.client_id = %s
+            ORDER BY d.decided_at DESC
+            """,
+            (client_id,),
+        ).fetchall()
+
+    return [
+        {
+            "name": str(row["name"]),
+            "position": str(row["position_id"]),
+            "decision": str(row["decision"]),
+            "reason": str(row["reason"]),
+            "decided_at": str(row["decided_at"] or "")[:19],
+        }
+        for row in rows
+    ]
+
+
+def _render_sessions_list() -> None:
+    """Compact list of prior sessions with an Open-into-chat button."""
     sessions: dict[str, dict[str, str]] = {}
     for entry in st.session_state.upload_entries:
         sid = entry.get("session_id", "")
@@ -827,112 +957,222 @@ def _render_history_window() -> None:
                 "timestamp": row.get("timestamp", ""),
             }
 
-    if sessions:
-        ordered_sessions = sorted(
-            sessions.values(),
-            key=lambda item: item.get("timestamp", ""),
-            reverse=True,
-        )
-        for session in ordered_sessions[:100]:
-            col_text, col_btn = st.columns([5, 1])
-            with col_text:
-                st.markdown(
-                    f"**{session.get('timestamp', '')}** | client: `{session.get('client_id', '')}` | "
-                    f"position: `{session.get('position', '')}` | session: `{session.get('session_id', '')}`"
-                )
-            with col_btn:
-                if st.button("Open", key=f"open-session-{session.get('session_id', '')}"):
-                    _open_session(
-                        session_id=session.get("session_id", ""),
-                        client_id=session.get("client_id", ""),
-                        position_id=session.get("position", ""),
-                    )
-                    st.success("Session loaded into chat. Scroll up to continue in chat.")
-                    st.rerun()
-    else:
-        st.caption("No sessions found.")
-
-    st.markdown("---")
-    st.subheader("Uploaded Entry Packages")
-    entries = st.session_state.upload_entries
-    st.caption(f"Total entries: {len(entries)}")
-    if entries:
-        for entry in reversed(entries[-100:]):
-            col_text, col_btn = st.columns([5, 1])
-            with col_text:
-                st.markdown(
-                    f"**{entry.get('timestamp', '')}** | client: `{entry.get('client_id', '')}` | "
-                    f"position: `{entry.get('position', '')}`"
-                )
-                st.code(
-                    (
-                        f"resume: {entry.get('resume_file', '') or '[none]'}\n"
-                        f"resume_path: {entry.get('resume_path', '') or '[none]'}\n"
-                        f"linkedin: {entry.get('linkedin_url', '') or '[none]'}\n"
-                        f"website: {entry.get('website_url', '') or '[none]'}\n"
-                        f"session_id: {entry.get('session_id', '')}"
-                    ),
-                    language="text",
-                )
-            with col_btn:
-                if st.button("Open", key=f"open-entry-{entry.get('entry_id', '')}"):
-                    _open_session(
-                        session_id=entry.get("session_id", ""),
-                        client_id=entry.get("client_id", ""),
-                        position_id=entry.get("position", ""),
-                    )
-                    st.success("Entry session loaded into chat.")
-                    st.rerun()
-    else:
-        st.caption("No uploaded entries yet.")
-
-    st.markdown("---")
-    st.subheader("Chat Query History")
-    query_history = st.session_state.query_history
-    st.caption(f"Total chat queries this session: {len(query_history)}")
-    if query_history:
-        for item in reversed(query_history[-100:]):
-            st.markdown(
-                f"**{item.get('timestamp', '')}** | client: `{item.get('client_id', '')}` | "
-                f"position: `{item.get('position_id', '')}`"
-            )
-            st.code(
-                (
-                    f"user: {item.get('user_input', '')}\n\n"
-                    f"assistant: {item.get('assistant_output', '')}\n\n"
-                    f"session_id: {item.get('session_id', '')}"
-                ),
-                language="text",
-            )
-    else:
-        st.caption("No chat queries yet.")
-
-
-def _render_positions_window() -> None:
-    st.subheader("All Positions")
-    rows = _get_all_positions_with_rubrics()
-    if not rows:
-        st.caption("No positions found.")
+    if not sessions:
+        st.caption("No past sessions yet.")
         return
+
+    ordered = sorted(sessions.values(), key=lambda item: item.get("timestamp", ""), reverse=True)
+    for session in ordered[:50]:
+        col_text, col_btn = st.columns([5, 1])
+        with col_text:
+            st.markdown(
+                f"`{session.get('timestamp', '')}` · client `{session.get('client_id', '')}` · "
+                f"position `{session.get('position', '') or '—'}`"
+            )
+        with col_btn:
+            if st.button("Open", key=f"open-session-{session.get('session_id', '')}"):
+                _open_session(
+                    session_id=session.get("session_id", ""),
+                    client_id=session.get("client_id", ""),
+                    position_id=session.get("position", ""),
+                )
+                st.rerun()
+
+
+# ─────────────────────────── Pages ───────────────────────────
+
+
+def page_chat() -> None:
+    st.header("Chat")
     st.caption(
-        "You are currently scoped to one client in the sidebar. "
-        "TechCorp has 3 open positions, StartupAI has 2 open positions."
+        "Ask about candidates, query the database, or trigger ATS ranking. "
+        "For a structured, scored evaluation of one candidate, use **Screen Candidate**."
     )
-    st.dataframe(rows, width="stretch", hide_index=True)
+    get_or_create_agent()
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            if message["role"] == "assistant":
+                _render_assistant_content(message["content"])
+            else:
+                st.markdown(message["content"])
+
+    if "pending_message" in st.session_state:
+        pending_message = st.session_state.pop("pending_message")
+        process_user_message(pending_message)
+
+    user_input = st.chat_input("Ask about a candidate, request evaluation, or trigger ATS ranking...")
+    if user_input:
+        process_user_message(user_input)
+
+    with st.expander("Past sessions", expanded=False):
+        _render_sessions_list()
 
 
-def _render_sidebar() -> None:
+def page_screen() -> None:
+    client_id = st.session_state.client_id
+    st.header("Screen Candidate")
+    st.markdown(
+        "Run an automated evaluation. The agent **parses the resume**, **pulls the LinkedIn "
+        "profile and personal website**, **scores the candidate against the position's hiring "
+        "rubric**, and returns a recommendation: `STRONG_HIRE` / `HIRE` / `CONSIDER` / `PASS`."
+    )
+
+    with st.form("screen_form", clear_on_submit=False):
+        uploaded_file = st.file_uploader("Resume (PDF or DOCX)", type=["pdf", "docx"], key="resume_uploader")
+        linkedin_url = st.text_input(
+            "LinkedIn URL", placeholder="https://linkedin.com/in/username", key="linkedin_input"
+        )
+        website_url = st.text_input(
+            "Personal website", placeholder="https://candidate-site.com", key="website_input"
+        )
+
+        positions = _get_positions_for_client(client_id)
+        position_options = [item["id"] for item in positions]
+        position_by_id = {item["id"]: item["title"] for item in positions}
+        if not position_options:
+            position = ""
+            st.warning("No open positions for this client — nothing to screen against.")
+        else:
+            if st.session_state.position_input not in position_options:
+                st.session_state.position_input = DEFAULT_POSITION_BY_CLIENT.get(
+                    client_id, position_options[0]
+                )
+                if st.session_state.position_input not in position_options:
+                    st.session_state.position_input = position_options[0]
+            position = st.selectbox(
+                "Position",
+                options=position_options,
+                key="position_input",
+                format_func=lambda pos_id: f"{position_by_id.get(pos_id, '')}  ·  {pos_id}",
+            )
+
+        submitted = st.form_submit_button(
+            "▶  Screen Candidate",
+            type="primary",
+            width="stretch",
+            help="Parses the resume, pulls LinkedIn/website, scores against the rubric, and returns a recommendation.",
+        )
+
+    if submitted:
+        if not position:
+            st.error("Select a position to screen against.")
+        elif uploaded_file is None and not linkedin_url.strip() and not website_url.strip():
+            st.error("Provide at least one source: a resume, a LinkedIn URL, or a website.")
+        else:
+            resume_path = save_uploaded_file(uploaded_file)
+            _record_submission_entry(resume_path, linkedin_url, website_url, position)
+            st.session_state.pending_evaluation = {
+                "resume_path": str(resume_path) if resume_path is not None else "",
+                "linkedin_url": linkedin_url,
+                "website_url": website_url,
+                "position": position,
+            }
+            st.rerun()
+
+    if "pending_evaluation" in st.session_state:
+        pending = st.session_state.pop("pending_evaluation")
+        pending_resume = Path(pending["resume_path"]) if pending.get("resume_path") else None
+        process_candidate_evaluation(
+            resume_path=pending_resume,
+            linkedin_url=str(pending.get("linkedin_url", "")),
+            website_url=str(pending.get("website_url", "")),
+            position=str(pending.get("position", "")),
+        )
+    elif st.session_state.get("last_screening"):
+        last = st.session_state["last_screening"]
+        st.divider()
+        st.subheader("Most recent result")
+        st.caption(f"Position `{last.get('position', '')}` · {last.get('timestamp', '')}")
+        _render_assistant_content(last.get("response", ""))
+
+
+def page_candidates() -> None:
+    client_id = st.session_state.client_id
+    st.header("Candidates")
+    st.caption(f"Evaluations, decisions, and uploaded resumes for `{client_id}`.")
+
+    candidates = _get_candidates_for_client(client_id)
+    decisions = _get_decisions_for_client(client_id)
+    resumes = [
+        entry for entry in st.session_state.upload_entries
+        if entry.get("client_id") == client_id
+    ]
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Evaluated", len(candidates))
+    col2.metric("Decisions", len(decisions))
+    col3.metric("Resumes uploaded", len(resumes))
+
+    st.subheader("Evaluations")
+    if candidates:
+        st.dataframe(candidates, width="stretch", hide_index=True)
+    else:
+        st.info("No candidates evaluated for this client yet. Run one from **Screen Candidate**.")
+
+    st.subheader("Decisions")
+    if decisions:
+        st.dataframe(decisions, width="stretch", hide_index=True)
+    else:
+        st.caption("No shortlist/reject decisions recorded yet.")
+
+    st.subheader("Uploaded resumes")
+    if resumes:
+        for entry in reversed(resumes[-100:]):
+            cols = st.columns([3, 2, 2])
+            cols[0].markdown(f"**{entry.get('resume_file') or '[no file]'}**")
+            cols[1].caption(f"position: {entry.get('position') or '—'}")
+            cols[2].caption(entry.get("timestamp", ""))
+            path = entry.get("resume_path", "")
+            if path and Path(path).exists():
+                try:
+                    cols[2].download_button(
+                        "Download",
+                        data=Path(path).read_bytes(),
+                        file_name=entry.get("resume_file") or "resume",
+                        key=f"dl-{entry.get('entry_id', path)}",
+                    )
+                except OSError:
+                    cols[2].caption("file unavailable")
+    else:
+        st.caption("No resumes uploaded for this client yet.")
+
+
+def page_positions() -> None:
+    client_id = st.session_state.client_id
+    st.header("Open Positions")
+    st.caption(f"Roles and scoring rubrics for `{client_id}`.")
+    rows = _get_positions_with_rubrics_for_client(client_id)
+    if not rows:
+        st.info("No open positions found for this client.")
+        return
+    st.metric("Open positions", len(rows))
+    for row in rows:
+        with st.expander(f"{row['title']}  ·  {row['position_id']}  ·  {row['status']}"):
+            if row["description"]:
+                st.markdown(f"**Description:** {row['description']}")
+            if row["criteria"]:
+                st.markdown("**Rubric criteria:**")
+                try:
+                    st.json(json.loads(row["criteria"]))
+                except (json.JSONDecodeError, TypeError):
+                    st.code(row["criteria"], language="text")
+            else:
+                st.caption("No rubric defined for this position.")
+
+
+def _render_shared_sidebar() -> None:
+    """Sidebar shared across every page: client picker, context meter, logs, status."""
     with st.sidebar:
-        st.title("HR Recruitment Agent")
         st.markdown("---")
-
         st.subheader("Client")
         current_index = CLIENT_OPTIONS.index(st.session_state.client_id)
         client_id = st.selectbox(
-            "Select Client",
+            "Active client",
             options=CLIENT_OPTIONS,
             index=current_index,
             key="client_selector",
+            help="Scopes every page — positions, candidates, evaluations, and the agent — to this client.",
         )
 
         if client_id != st.session_state.client_id:
@@ -943,6 +1183,8 @@ def _render_sidebar() -> None:
             st.session_state.agent_logs = []
             st.session_state.position_input = ""
             st.session_state.token_budget_used = 0
+            st.session_state.last_screening = None
+            st.rerun()
 
         st.markdown("---")
         budget_used = int(st.session_state.get("token_budget_used", 0))
@@ -953,86 +1195,28 @@ def _render_sidebar() -> None:
             st.warning(f"Context {budget_pct}% full. Compression triggers at ~50%.")
 
         st.markdown("---")
-        st.subheader("Candidate Input")
-
-        uploaded_file = st.file_uploader(
-            "Upload Resume (PDF or DOCX)",
-            type=["pdf", "docx"],
-            key="resume_uploader",
-        )
-        resume_path = save_uploaded_file(uploaded_file)
-        if resume_path is not None:
-            st.success(f"Resume saved: {uploaded_file.name}")
-
-        linkedin_url = st.text_input(
-            "LinkedIn URL",
-            placeholder="https://linkedin.com/in/username",
-            key="linkedin_input",
-        )
-        website_url = st.text_input(
-            "Personal Website",
-            placeholder="https://candidate-site.com",
-            key="website_input",
-        )
-        positions = _get_positions_for_client(st.session_state.client_id)
-        position_options = [item["id"] for item in positions]
-        position_by_id = {item["id"]: item["title"] for item in positions}
-        if not position_options:
-            position = ""
-            st.warning("No open positions found for this client.")
-        else:
-            if st.session_state.position_input not in position_options:
-                st.session_state.position_input = DEFAULT_POSITION_BY_CLIENT.get(
-                    st.session_state.client_id, position_options[0]
-                )
-                if st.session_state.position_input not in position_options:
-                    st.session_state.position_input = position_options[0]
-
-            position = st.selectbox(
-                "Position ID",
-                options=position_options,
-                key="position_input",
-                format_func=lambda pos_id: f"{pos_id} | {position_by_id.get(pos_id, '')}",
-            )
-            st.caption("Position IDs and titles are loaded from seeded database records.")
-
-        st.markdown("---")
-        if st.button("Start Evaluation", type="primary", width="stretch"):
-            _record_submission_entry(
-                resume_path=resume_path,
-                linkedin_url=linkedin_url,
-                website_url=website_url,
-                position=position,
-            )
-            st.session_state.pending_evaluation = {
-                "resume_path": str(resume_path) if resume_path is not None else "",
-                "linkedin_url": linkedin_url,
-                "website_url": website_url,
-                "position": position,
-            }
-
         st.checkbox("Show live agent progress", key="show_agent_progress")
-        if st.button("Clear agent logs", width="stretch"):
-            st.session_state.agent_logs = []
-
-        with st.expander("Agent Logs", expanded=False):
+        with st.expander("Agent logs", expanded=False):
             if st.session_state.agent_logs:
                 for line in st.session_state.agent_logs[-200:]:
                     st.code(line)
             else:
                 st.caption("No agent logs yet.")
+            if st.button("Clear logs", width="stretch"):
+                st.session_state.agent_logs = []
+                st.rerun()
 
         st.markdown("---")
         st.caption(f"Session: {st.session_state.session_id[:8]}...")
-        st.caption(f"Client: {st.session_state.client_id}")
         tokens_in = int(st.session_state.get("total_tokens_in", 0))
         tokens_out = int(st.session_state.get("total_tokens_out", 0))
-        st.markdown("**Token Usage**")
-        st.caption(f"{tokens_in:,} in / {tokens_out:,} out")
-        st.caption(f"Est. cost: ${_estimated_cost_usd(tokens_in, tokens_out):.4f}")
+        st.caption(
+            f"Tokens: {tokens_in:,} in / {tokens_out:,} out · "
+            f"est. ${_estimated_cost_usd(tokens_in, tokens_out):.4f}"
+        )
+        st.caption(f"Model: {os.getenv('OPENROUTER_MODEL', 'deepseek/deepseek-v3.2')}")
         if not os.getenv("OPENROUTER_API_KEY"):
             st.warning("OPENROUTER_API_KEY is not set.")
-        st.caption(f"Model: {os.getenv('OPENROUTER_MODEL', 'deepseek/deepseek-v3.2')}")
         if not os.getenv("DATABASE_URL"):
             st.warning("DATABASE_URL is not set.")
 
@@ -1041,48 +1225,18 @@ def main() -> None:
     st.set_page_config(page_title="HR Recruitment Agent", page_icon=":briefcase:", layout="wide")
     init_session_state()
     _apply_pending_session_open()
-    _render_sidebar()
 
-    col_chat, col_side = st.columns([1.9, 1.1], gap="large")
-
-    with col_chat:
-        st.title("HR Recruitment Agent")
-        st.markdown(
-            "Chat with the AI recruitment agent. Provide candidate details in the sidebar or type directly."
-        )
-        get_or_create_agent()
-
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                if message["role"] == "assistant":
-                    _render_assistant_content(message["content"])
-                else:
-                    st.markdown(message["content"])
-
-        if "pending_evaluation" in st.session_state:
-            pending = st.session_state.pop("pending_evaluation")
-            pending_resume = Path(pending["resume_path"]) if pending.get("resume_path") else None
-            process_candidate_evaluation(
-                resume_path=pending_resume,
-                linkedin_url=str(pending.get("linkedin_url", "")),
-                website_url=str(pending.get("website_url", "")),
-                position=str(pending.get("position", "")),
-            )
-
-        if "pending_message" in st.session_state:
-            pending_message = st.session_state.pop("pending_message")
-            process_user_message(pending_message)
-
-        user_input = st.chat_input("Ask about a candidate, request evaluation, or trigger ATS ranking...")
-        if user_input:
-            process_user_message(user_input)
-
-    with col_side:
-        history_tab, positions_tab = st.tabs(["History", "Positions"])
-        with history_tab:
-            _render_history_window()
-        with positions_tab:
-            _render_positions_window()
+    st.sidebar.title("HR Recruitment Agent")
+    pages = st.navigation(
+        [
+            st.Page(page_chat, title="Chat", icon=":material/forum:", default=True),
+            st.Page(page_screen, title="Screen Candidate", icon=":material/fact_check:"),
+            st.Page(page_candidates, title="Candidates", icon=":material/groups:"),
+            st.Page(page_positions, title="Positions", icon=":material/work:"),
+        ]
+    )
+    _render_shared_sidebar()
+    pages.run()
 
 
 if __name__ == "__main__":
