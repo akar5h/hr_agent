@@ -154,6 +154,27 @@ Durable decisions, newest-appended. Format: `D<n> — <title>` · Why · Rejecte
   the always-fail → persist change is intended. Everything else stays baseline.
 - **Trace:** `src/tools/workflow_tools.py`.
 
+### D11 — Candidate release v1: evaluation is not terminal; standard-observability trace fix
+- **Why:** Agentagon `goal_observable_measurements_v0` over the 185 baseline traces
+  read as "begins eval but never commits a grounded rubric-backed decision". Grounded
+  in code + the 200-trace baseline (investigator dossier), the smallest REAL defect was
+  that `submit_evaluation` self-framed as the terminal action (tool docstring + system
+  prompt + `evaluate_candidate.md`) → 20/29 (69%) of scored traces stopped at eval and
+  never committed shortlist/reject. Fix = reframe those 3 texts conditionally so a
+  decision follows eval **only when the user's goal is a decision** (evaluate-only
+  requests still stop; no unrequested decisions). Model UNCHANGED. PROMPT_VERSION →
+  `candidate-screening-v3-decision-followthrough`.
+- **Observability (separate, user-directed):** do NOT add bespoke scorer-shaped grounding
+  fields — a production trace won't have them and the analyzer should infer from a normal
+  trace. Fix only the STANDARD gaps ours dropped: capture tool RESULTS (observations,
+  turn-scoped, 8000-char cap) + the system prompt (STATIC_CONTEXT). This is why the report
+  scored rubric-scoring 23/23 false while DB-truth showed grounded evals exist.
+- **Rejected:** wrong-email lookup fix (real but second-order, unprovable without tool
+  results — deferred); hard-gating `submit_evaluation` on `evidence_refs` (would lower
+  commits — wrong direction).
+- **Trace:** commits `c02e161` (behavior), `ece0407` (observability);
+  `experiments/historical_traffic_v0/CHANGE_HYPOTHESIS.md`; experiment T4/T1.
+
 ---
 
 ## Task queue
@@ -163,4 +184,7 @@ Prioritized work. Set status when it changes: `todo` / `in-progress` / `done` / 
 | ID | Task | Status | Trace |
 |----|------|--------|-------|
 | P0.1 | Decision-memory system (CLAUDE.md + journal hook + this doc) | done | this session |
-| _add next tasks here_ | | | |
+| P1.1 | Candidate release v1: eval→decide reframe + tool-result/system-prompt capture | in-progress | D11, c02e161, ece0407 |
+| P1.2 | Rerun 200 on candidate (own EC2 + DB `exp_code`) → `out/run_200_codefix/` | todo | CHANGE_HYPOTHESIS §7 |
+| P1.3 | RUN_MANIFEST.json + rerun case-ID list + diff vs baseline | todo | D11 |
+| T3 | Model-change exp: 200 on qwen3-32b (own EC2 + DB `exp_model`) | in-progress | TODO T3 |
