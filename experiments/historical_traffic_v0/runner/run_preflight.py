@@ -267,9 +267,26 @@ def run_scenario(scenario: dict[str, Any], index: int) -> dict[str, Any]:
             for tc in (e.get("tool_calls") or [])
         ]
         record["decision_observable"] = _capture_decision_observable(session_id, bridge.events)
+        record["system_prompt"] = _capture_system_prompt(client_id, session_id)
         record["finished_at"] = _now_iso()
 
     return record
+
+
+def _capture_system_prompt(client_id: str, session_id: str) -> dict[str, Any]:
+    """Capture the agent's system prompt so the trace carries its static context.
+
+    The external analyzer flagged STATIC_CONTEXT_UNAVAILABLE — a normal trace includes
+    the system prompt. Uses the same builder the agent uses (deterministic, lru-cached);
+    the per-session memory block is left out so the captured text stays stable. Standard
+    trace content, not a scorer-shaped field. Fail-soft: never breaks a run.
+    """
+    try:
+        from src.prompts.evaluation import PROMPT_VERSION, build_system_prompt
+
+        return {"prompt_version": PROMPT_VERSION, "text": build_system_prompt(client_id, session_id)}
+    except Exception as exc:  # trace enrichment must never break a scenario
+        return {"prompt_version": None, "text": None, "error": str(exc)[:150]}
 
 
 def _capture_decision_observable(session_id: str, events: list[dict[str, Any]]) -> dict[str, Any]:

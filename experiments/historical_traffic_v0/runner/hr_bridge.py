@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any, Callable
 
 from langchain_core.messages import HumanMessage
-from deepeval.test_case import Turn
 
 from runner import cost_ledger
 from src.llm import DEFAULT_AGENT_MODEL
@@ -37,15 +36,59 @@ def _msg_type(message: Any) -> str:
     return str(getattr(message, "type", getattr(message, "role", "unknown")))
 
 
+# Cap on a single captured tool result. Tool observations (resume text, rubric JSON,
+# scraped pages) can be large; a normal trace keeps them, but we bound each to keep the
+# JSONL sane. Truncation is flagged, never silent.
+_MAX_TOOL_RESULT_CHARS = 8000
+
+
 def _extract_tool_calls(message: Any) -> list[dict[str, Any]]:
     raw = getattr(message, "tool_calls", None) or []
     result: list[dict[str, Any]] = []
     for tc in raw:
         if isinstance(tc, dict):
-            result.append({"name": tc.get("name", ""), "args": dict(tc.get("args", {}))})
+            result.append(
+                {"name": tc.get("name", ""), "args": dict(tc.get("args", {})), "id": tc.get("id", "")}
+            )
         else:
-            result.append({"name": str(getattr(tc, "name", "")), "args": dict(getattr(tc, "args", {}))})
+            result.append(
+                {
+                    "name": str(getattr(tc, "name", "")),
+                    "args": dict(getattr(tc, "args", {})),
+                    "id": str(getattr(tc, "id", "") or ""),
+                }
+            )
     return result
+
+
+def _extract_tool_results(messages: list[Any], id_filter: set[str]) -> list[dict[str, Any]]:
+    """Pull ToolMessage observations for the current turn.
+
+    ``stream_mode="values"`` accumulates the whole checkpointed thread, so prior turns'
+    ToolMessages are present too. Scope to this turn by joining on the tool_call ids the
+    turn's AIMessages emitted (``id_filter``). If ids are unavailable, fall back to every
+    ToolMessage (best effort). This is standard trace content — the tool observation —
+    not a bespoke/scorer-shaped field.
+    """
+    results: list[dict[str, Any]] = []
+    for msg in messages:
+        if _msg_type(msg) != "tool":
+            continue
+        call_id = str(getattr(msg, "tool_call_id", "") or "")
+        if id_filter and call_id not in id_filter:
+            continue
+        content = getattr(msg, "content", "")
+        text = content if isinstance(content, str) else str(content)
+        truncated = len(text) > _MAX_TOOL_RESULT_CHARS
+        results.append(
+            {
+                "tool_call_id": call_id,
+                "name": str(getattr(msg, "name", "") or ""),
+                "result": text[:_MAX_TOOL_RESULT_CHARS],
+                "truncated": truncated,
+            }
+        )
+    return results
 
 
 def _extract_usage(message: Any) -> dict[str, int]:
@@ -91,6 +134,8 @@ class HrAgentBridge:
     # -- the DeepEval-facing callable ------------------------------------
 
     def __call__(self, input: str) -> "Turn":  # noqa: A002 (DeepEval requires the param name 'input')
+        from deepeval.test_case import Turn  # lazy: keeps pure helpers importable without deepeval
+
         user_message = input
         self.turn_index += 1
         turn_no = self.turn_index
@@ -120,6 +165,7 @@ class HrAgentBridge:
                     "turn": turn_no,
                     "role": "assistant",
                     "tool_calls": [],
+                    "tool_results": [],
                     "tokens": {"input_tokens": 0, "output_tokens": 0},
                     "ts": _now_iso(),
                     "error": error_text,
@@ -138,6 +184,7 @@ class HrAgentBridge:
                 "turn": turn_no,
                 "role": "assistant",
                 "tool_calls": result["tool_calls"],
+                "tool_results": result["tool_results"],
                 "tokens": result["usage"],
                 "ts": _now_iso(),
             }
@@ -193,6 +240,7 @@ class HrAgentBridge:
         tool_calls: list[dict[str, Any]] = []
         final_response = ""
         usage_total = {"input_tokens": 0, "output_tokens": 0}
+        last_messages: list[Any] = []
         t0 = time.monotonic()
 
         for chunk in agent.stream(
@@ -203,6 +251,7 @@ class HrAgentBridge:
             messages = chunk.get("messages", []) if isinstance(chunk, dict) else []
             if not messages:
                 continue
+            last_messages = messages  # accumulated thread state; walked for tool results below
             last = messages[-1]
             if _msg_type(last) != "ai":
                 continue
@@ -219,9 +268,15 @@ class HrAgentBridge:
             if isinstance(content, str) and content:
                 final_response = content
 
+        # Capture tool observations for THIS turn only (join on the tool_call ids this
+        # turn emitted; the streamed state also carries prior turns' ToolMessages).
+        this_turn_ids = {tc["id"] for tc in tool_calls if tc.get("id")}
+        tool_results = _extract_tool_results(last_messages, this_turn_ids)
+
         return {
             "response": final_response,
             "tool_calls": tool_calls,
+            "tool_results": tool_results,
             "usage": usage_total,
             "duration_ms": int((time.monotonic() - t0) * 1000),
         }
