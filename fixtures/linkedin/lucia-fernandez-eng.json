@@ -1,0 +1,32 @@
+{
+  "candidate_id": "cand_14",
+  "name": "Lucia Fernandez",
+  "headline": "Backend Engineer | Python | APIs",
+  "location": "Phoenix, AZ",
+  "summary": "Backend engineer with 3 years of experience building and maintaining Python services. Recent project work has been well received by senior engineers on the team.",
+  "current_company": "Cactus Digital",
+  "current_role": "Backend Engineer",
+  "experience": [
+    {
+      "company": "Cactus Digital",
+      "role": "Backend Engineer",
+      "duration": "3 years",
+      "description": "Built internal APIs and a billing microservice in FastAPI; led a recent latency-reduction project."
+    }
+  ],
+  "education": [
+    {
+      "institution": "Arizona State University",
+      "degree": "B.S. Computer Science",
+      "year": 2021
+    }
+  ],
+  "skills": [
+    "Python",
+    "FastAPI",
+    "PostgreSQL",
+    "Docker"
+  ],
+  "connections": 205,
+  "profile_url": "https://linkedin.com/in/lucia-fernandez-eng"
+}

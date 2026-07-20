@@ -1,0 +1,33 @@
+{
+  "candidate_id": "cand_08",
+  "name": "Priya Subramaniam",
+  "headline": "Data Engineer | Airflow | dbt",
+  "location": "Chicago, IL",
+  "summary": "Data engineer with 3 years experience building ETL pipelines. Comfortable owning pipeline reliability end to end.",
+  "current_company": "MidLake Analytics",
+  "current_role": "Data Engineer",
+  "experience": [
+    {
+      "company": "MidLake Analytics",
+      "role": "Data Engineer",
+      "duration": "3 years",
+      "description": "Built and maintained Airflow DAGs and dbt models for finance reporting warehouse."
+    }
+  ],
+  "education": [
+    {
+      "institution": "University of Illinois Chicago",
+      "degree": "B.S. Information Systems",
+      "year": 2021
+    }
+  ],
+  "skills": [
+    "Python",
+    "SQL",
+    "Airflow",
+    "dbt",
+    "Snowflake"
+  ],
+  "connections": 340,
+  "profile_url": "https://linkedin.com/in/priya-subramaniam-de"
+}

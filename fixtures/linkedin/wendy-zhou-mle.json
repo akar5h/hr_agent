@@ -1,0 +1,32 @@
+{
+  "candidate_id": "cand_20",
+  "name": "Wendy Zhou",
+  "headline": "ML Engineer",
+  "location": "San Jose, CA",
+  "summary": "ML engineer previously screened and advanced to the interview stage two weeks ago for the ML Engineer role at StartupAI.",
+  "current_company": "Cascade Vision",
+  "current_role": "ML Engineer",
+  "experience": [
+    {
+      "company": "Cascade Vision",
+      "role": "ML Engineer",
+      "duration": "3 years",
+      "description": "Computer-vision model development and deployment for retail analytics."
+    }
+  ],
+  "education": [
+    {
+      "institution": "UC San Diego",
+      "degree": "M.S. Computer Science",
+      "year": 2021
+    }
+  ],
+  "skills": [
+    "Python",
+    "PyTorch",
+    "OpenCV",
+    "Docker"
+  ],
+  "connections": 350,
+  "profile_url": "https://linkedin.com/in/wendy-zhou-mle"
+}

@@ -7,9 +7,45 @@ Doubt-driven findings are folded in (tagged `[Dn]` = review finding number).
 
 Status: `todo` / `wip` / `done` / `blocked`.
 
+> **CP0–CP9 below are DONE** — baseline 200-corpus generated + run (qwen3-235b, temp=0,
+> $4.39, out/run_200/). Active work is now the two diff experiments + enrichment. See
+> `WORKING_MEMORY.md` for infra + gotchas.
+
 ---
 
-## CP0 — Plumbing + AWS provisioning + pre-freeze probes · `todo`
+## ACTIVE — post-200 diff experiments + enrichment
+
+### T1 — Trace enrichment: token distribution + richer spans · `todo`
+- Capture per-turn token breakdown: **system-prompt vs context/history vs memory vs tool-results vs reasoning vs completion** (currently only total in/out via usage_metadata).
+- Approach: instrument `build_system_prompt` (count cached/stable vs dynamic block tokens), count message-history tokens, memory-injected tokens, tool-result tokens per turn (tiktoken/token count on each message component before the LLM call). Attach to the normalized trace event + Langfuse span metadata.
+- Add any other enrichable signals to Langfuse/OTel spans (model-version hash, per-tool latency, tool-result sizes, injection-hit flags).
+- **Acceptance:** each normalized turn event has a `token_breakdown{system,context,memory,tools,reasoning,completion}`; Langfuse spans carry it.
+
+### T2 — Bounded parallelism in the runner · `todo`
+- Add `PARALLELISM` env to `run_preflight.py`: ThreadPoolExecutor over scenarios (agent stream is sync). `cost_ledger` already thread-safe (`_lock`). Write records as futures complete; keep per-scenario try/except.
+- Size concurrency to Bedrock TPM/RPM empirically (start 8, add exp-backoff on ThrottlingException). **More/bigger EC2 does NOT speed one run — Bedrock quota is the shared ceiling.**
+- **Caveat:** parallel worsens cross-scenario state contention → use a separate DB per experiment (T3/T4).
+
+### T3 — Exp A: MODEL CHANGE (own EC2 + own DB) · `todo`
+- Same 200 corpus, agent model = **`qwen.qwen3-32b-v1:0`** (cheap, same family → isolates size effect). Simulator unchanged (Kimi/GLM). temp=0.
+- Own EC2 (spawn a 2nd t3.small) + own Postgres **database** (same RDS, new dbname e.g. `exp_model`) → migrations+seed+seed_candidate_world into it; `DATABASE_URL` points there. Full isolation from Exp B.
+- Output `out/run_200_qwen32b/`. **Kill the EC2 when done.**
+- **Acceptance:** 200 run complete, diffable vs baseline `out/run_200/`.
+
+### T4 — Exp B: CODE CHANGE (own EC2 + own DB) · `todo`
+- Fix the **wrong-email lookup bug** (agent ignores provided email / hallucinates names — 33/200). Likely a prompt/tool tweak so the agent uses the exact email from context and doesn't invent one.
+- Rerun same 200 on the SAME model (qwen3-235b), own EC2 + own DB (dbname `exp_code`). Output `out/run_200_codefix/`. **Kill EC2 when done.**
+- **Acceptance:** 200 run complete; diff vs baseline shows lookup failures drop.
+
+### T5 — Two-EC2 cost + isolation control · `todo`
+- Spawn the 2nd EC2 (reuse instance-profile role, same tags), run A and B concurrently on separate boxes + separate DBs. Track spend (both Bedrock + EC2 hours from AWS credits). **Stop/terminate both boxes when done.**
+
+### T6 — Diff engine · `todo`
+- Compare baseline `run_200` vs each candidate on the SAME case_ids: decisions/scores/tool_sequences/token_breakdown deltas → a diff report per experiment.
+
+---
+
+## CP0 — Plumbing + AWS provisioning + pre-freeze probes · `done`
 
 Goal: agent runs on AWS-native stack, behavior fixed, isolation understood, cost known.
 

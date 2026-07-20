@@ -89,6 +89,71 @@ Durable decisions, newest-appended. Format: `D<n> — <title>` · Why · Rejecte
   unchanged (core frozen).
 - **Trace:** experiment `experiments/historical_traffic_v0/` CP0.
 
+### D6 — Model-delegation policy for the traffic experiment (cost control)
+- **Why:** Keep spend down while building. Heavy **code + report writing → Sonnet/Opus**
+  subagents; **judgement, conflict-blocking, planning, user dialogue, ideation → Fable**.
+  Orchestration/verification stays in the main loop. Applied from the preflight build
+  onward (banks + runner harness delegated to Sonnet).
+- **Trace:** experiment CP2–CP6.
+
+### D7 — Preflight substrate = DeepEval 4.1.1 ConversationSimulator (no home-grown loop)
+- **Why:** Honor the source-contract mandate. Verified API on-box: `ConversationSimulator(
+  model_callback:[str]->str, simulator_model:DeepEvalBaseLLM, ...).simulate(goldens,
+  max_user_simulations, ...)`. We run ONE golden per scenario with a session-bound
+  callback (isolation) and orchestrate scenario concurrency ourselves; per-scenario
+  `max_user_simulations` = turn budget. No blocking defect found → off-ramp not taken.
+- **Trace:** experiment CP4, `runner/`.
+
+### D8 — Full "candidate world" provisioning; missing-data becomes intentional
+- **Why:** Preflight exposed that scenarios reference 24 identities but only 5 are
+  seeded in the DB, and identities carried no emails / LinkedIn / website. So
+  lookup/decision/dedup/memory/idempotency scenarios on `cand_06..24` hit "not
+  found" — accidental missing-data noise that would dominate ~45% of the 200-run.
+  Fix: seed the full 24 into the DB (emails, target positions; prior-eval rows for
+  `already_evaluated`/`duplicate`) and generate LinkedIn + website fixtures for
+  each, with fuzziness (~60% normal, ~25% sparse/conflicting, `missing_*`
+  archetypes deliberately absent) and a **bounded ~2–3 injection** set (not an
+  all-adversarial corpus). Missing data is now a *designed* condition (recovery
+  family + missing_* archetypes), not a default.
+- **Isolation fix (required):** `scrape_website` falls back to a real
+  `requests.get` when a hostname isn't in `WEBSITE_FIXTURE_MAP`. All 24 candidate
+  website hostnames are added to the map → the experiment never contacts the real
+  internet. This is plumbing/fixtures, not agent-decision logic.
+- **Trace:** experiment CP2/CP3 remediation; `fixtures/`, `runner/seed_candidate_world.py`.
+
+### D9 — Diffability tweaks: commit-decision scenarios, decision observable, temp=0
+- **Why:** The preflight was retrieval-heavy (`candidate_decisions`=0 — no scenario
+  committed a side effect), so a baseline↔candidate diff would show nothing. To make
+  the corpus diff-meaningful for the user's regression use case (tweak → new version →
+  rerun same cases → diff), three minimal changes (no reshaping):
+  1. **Commit-decision scenarios** (pf_0011–13) targeting the seeded injection/
+     boundary/conflict candidates (Owen Sullivan, Sofia Marchetti, Meiling Tan) with
+     goals that end in a shortlist/reject/email — so failures (injection compliance,
+     boundary flips, idempotency breaks) actually surface.
+  2. **Decision observable** captured per scenario in the normalized trace:
+     `{final_decision, committed_decisions, committed_emails, evaluation_calls,
+     tool_sequence}` (decisions/emails keyed by session in the DB) → clean,
+     attributable diff instead of eyeballed prose.
+  3. **Agent temp = 0** (`BEDROCK_FORCE_TEMPERATURE=0`) — reverses D6's 0.3 for this
+     regression use case; minimizes sampling noise so a diff reflects real change.
+     (MoE-on-Bedrock isn't bitwise-deterministic even at 0 — documented limitation;
+     alternative is N-sample distribution diff.)
+- **Trace:** experiment CP3/CP5; `runner/run_preflight.py`, `scenarios_preflight.jsonl`.
+
+### D10 — Fix: idempotent decision/email ON CONFLICT never matched its partial index
+- **Why:** `_record_decision`/`_record_email` used `ON CONFLICT (idempotency_key)`
+  but the unique index is partial (`WHERE idempotency_key IS NOT NULL`). Postgres
+  requires the predicate on the conflict target, so EVERY shortlist/reject/send-email
+  raised "no unique or exclusion constraint matching the ON CONFLICT specification"
+  → **no decision ever persisted** (candidate_decisions stayed 0). Latent since D2;
+  never exercised because no test/preflight committed a decision until pf_0011–13.
+- **Fix:** add `WHERE idempotency_key IS NOT NULL` to both `ON CONFLICT` clauses
+  (1-line each). Makes the *designed* idempotency (D2) actually function; unblocks
+  the decision-diff use case (D9).
+- **Scope:** core tool code change, **user-approved** as the ONLY behavioral fix —
+  the always-fail → persist change is intended. Everything else stays baseline.
+- **Trace:** `src/tools/workflow_tools.py`.
+
 ---
 
 ## Task queue

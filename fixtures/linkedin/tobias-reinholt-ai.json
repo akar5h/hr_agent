@@ -1,0 +1,62 @@
+{
+  "candidate_id": "cand_11",
+  "name": "Tobias Reinholt",
+  "headline": "AI Engineer | Fast shipper, many stops",
+  "location": "Remote (EU)",
+  "summary": "AI engineer with a track record of fast, high-output stints at early-stage startups and agencies. Six roles in five years.",
+  "current_company": "Freelance / Contract",
+  "current_role": "AI Engineer (Contract)",
+  "experience": [
+    {
+      "company": "PixelForge Agency",
+      "role": "AI Engineer (contract)",
+      "duration": "7 months",
+      "description": "Built a client-facing chatbot MVP."
+    },
+    {
+      "company": "Voltix AI",
+      "role": "AI Engineer",
+      "duration": "9 months",
+      "description": "Prototyped LLM-based document extraction; project sunset after funding lapsed."
+    },
+    {
+      "company": "Northlight Labs",
+      "role": "ML Engineer",
+      "duration": "6 months",
+      "description": "Built recommendation model for early-stage marketplace startup."
+    },
+    {
+      "company": "Kestrel Data",
+      "role": "Data/ML Engineer",
+      "duration": "10 months",
+      "description": "ETL and lightweight ML scoring models."
+    },
+    {
+      "company": "Formic Studio",
+      "role": "AI Engineer",
+      "duration": "8 months",
+      "description": "NLP feature for content moderation."
+    },
+    {
+      "company": "Reef Analytics",
+      "role": "ML Engineer",
+      "duration": "6 months",
+      "description": "Churn-prediction model, shipped to production."
+    }
+  ],
+  "education": [
+    {
+      "institution": "TU Delft",
+      "degree": "M.S. Computer Science",
+      "year": 2019
+    }
+  ],
+  "skills": [
+    "Python",
+    "PyTorch",
+    "LangChain",
+    "Docker"
+  ],
+  "connections": 420,
+  "profile_url": "https://linkedin.com/in/tobias-reinholt-ai"
+}

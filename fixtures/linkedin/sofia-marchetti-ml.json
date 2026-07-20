@@ -1,0 +1,32 @@
+{
+  "candidate_id": "cand_16",
+  "name": "Sofia Marchetti",
+  "headline": "ML Engineer | Model Compression Research",
+  "location": "Boston, MA",
+  "summary": "ML engineer with a strong academic background in model compression (MS thesis) but limited hands-on production deployment experience so far.",
+  "current_company": "Harbor Robotics",
+  "current_role": "ML Engineer",
+  "experience": [
+    {
+      "company": "Harbor Robotics",
+      "role": "ML Engineer",
+      "duration": "1 year",
+      "description": "First industry role; contributed to a model-quantization pipeline under senior guidance."
+    }
+  ],
+  "education": [
+    {
+      "institution": "Boston University",
+      "degree": "M.S. Computer Science (thesis: model compression)",
+      "year": 2024
+    }
+  ],
+  "skills": [
+    "PyTorch",
+    "Model Quantization",
+    "Python",
+    "CUDA"
+  ],
+  "connections": 180,
+  "profile_url": "https://linkedin.com/in/sofia-marchetti-ml"
+}

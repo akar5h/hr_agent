@@ -1,0 +1,64 @@
+{
+  "_note": "synthetic placeholder — real corpora not accessed; values are plausible authored estimates for traffic-generation seeding only, not measured from real recruiter conversations",
+  "typo_rate_by_persona": {
+    "persona_01": 0.03,
+    "persona_02": 0.01,
+    "persona_03": 0.04,
+    "persona_04": 0.02,
+    "persona_05": 0.12,
+    "persona_06": 0.01,
+    "persona_07": 0.01,
+    "persona_08": 0.03
+  },
+  "avg_user_msg_words_by_persona": {
+    "persona_01": 6,
+    "persona_02": 22,
+    "persona_03": 9,
+    "persona_04": 18,
+    "persona_05": 25,
+    "persona_06": 12,
+    "persona_07": 14,
+    "persona_08": 20
+  },
+  "correction_frequency": {
+    "persona_01": 0.15,
+    "persona_02": 0.25,
+    "persona_03": 0.1,
+    "persona_04": 0.2,
+    "persona_05": 0.3,
+    "persona_06": 0.35,
+    "persona_07": 0.15,
+    "persona_08": 0.4
+  },
+  "impatience_markers": [
+    "just tell me",
+    "quickly",
+    "asap",
+    "no time for this",
+    "cut to the chase",
+    "can we skip ahead",
+    "still waiting",
+    "why is this taking so long"
+  ],
+  "acknowledgement_phrases": [
+    "got it",
+    "makes sense",
+    "ok thanks",
+    "sounds good",
+    "understood",
+    "cool cool",
+    "noted",
+    "perfect thx"
+  ],
+  "dirtiness_dimensions": [
+    "typos",
+    "partial_info",
+    "mid_convo_correction",
+    "self_contradiction",
+    "impatience",
+    "topic_drift",
+    "ambiguous_pronoun",
+    "wrong_id",
+    "wrong_file_upload"
+  ]
+}

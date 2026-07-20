@@ -1,0 +1,44 @@
+{
+  "candidate_id": "cand_10",
+  "name": "Renata Silva",
+  "headline": "Backend Engineer (returning to the workforce)",
+  "location": "Miami, FL",
+  "summary": "Backend engineer returning to full-time work after a multi-year caregiving break. Recently completed a 6-month contract refreshing Python and cloud skills.",
+  "current_company": "BridgeWork Contracting",
+  "current_role": "Contract Backend Engineer",
+  "experience": [
+    {
+      "company": "BridgeWork Contracting",
+      "role": "Contract Backend Engineer",
+      "duration": "6 months",
+      "description": "Short-term contract refreshing Python/AWS skills; delivered two internal-tools projects."
+    },
+    {
+      "company": "Caregiving break",
+      "role": "N/A",
+      "duration": "3 years",
+      "description": "Family caregiving leave."
+    },
+    {
+      "company": "Solara Fintech",
+      "role": "Backend Engineer",
+      "duration": "5 years",
+      "description": "Built payments backend services in Python/Django prior to leave."
+    }
+  ],
+  "education": [
+    {
+      "institution": "Florida International University",
+      "degree": "B.S. Computer Science",
+      "year": 2013
+    }
+  ],
+  "skills": [
+    "Python",
+    "Django",
+    "AWS",
+    "PostgreSQL"
+  ],
+  "connections": 190,
+  "profile_url": "https://linkedin.com/in/renata-silva-eng"
+}

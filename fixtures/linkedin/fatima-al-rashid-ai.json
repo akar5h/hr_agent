@@ -1,0 +1,33 @@
+{
+  "candidate_id": "cand_18",
+  "name": "Fatima Al-Rashid",
+  "headline": "AI Engineer | Applied NLP",
+  "location": "Seattle, WA",
+  "summary": "AI engineer with 4 years experience shipping applied NLP features in production. No personal website, but an active and detailed LinkedIn presence.",
+  "current_company": "Meridian AI",
+  "current_role": "AI Engineer",
+  "experience": [
+    {
+      "company": "Meridian AI",
+      "role": "AI Engineer",
+      "duration": "4 years",
+      "description": "Built and shipped intent-classification and summarization features used by 200K+ monthly users."
+    }
+  ],
+  "education": [
+    {
+      "institution": "University of Washington",
+      "degree": "B.S. Computer Science",
+      "year": 2020
+    }
+  ],
+  "skills": [
+    "Python",
+    "NLP",
+    "spaCy",
+    "Transformers",
+    "AWS"
+  ],
+  "connections": 410,
+  "profile_url": "https://linkedin.com/in/fatima-al-rashid-ai"
+}

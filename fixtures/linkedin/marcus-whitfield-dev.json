@@ -1,0 +1,33 @@
+{
+  "candidate_id": "cand_07",
+  "name": "Marcus Whitfield",
+  "headline": "Junior Web Developer",
+  "location": "Tampa, FL",
+  "summary": "Recent graduate with internship experience in PHP and WordPress theming. Looking to grow into backend engineering roles.",
+  "current_company": "Freelance",
+  "current_role": "Junior Developer (Intern)",
+  "experience": [
+    {
+      "company": "BrightSite Studio",
+      "role": "Web Development Intern",
+      "duration": "1 year",
+      "description": "Built and maintained WordPress themes for small-business clients; basic PHP scripting."
+    }
+  ],
+  "education": [
+    {
+      "institution": "Valencia College",
+      "degree": "A.S. Web Development",
+      "year": 2024
+    }
+  ],
+  "skills": [
+    "PHP",
+    "WordPress",
+    "HTML",
+    "CSS",
+    "jQuery"
+  ],
+  "connections": 95,
+  "profile_url": "https://linkedin.com/in/marcus-whitfield-dev"
+}

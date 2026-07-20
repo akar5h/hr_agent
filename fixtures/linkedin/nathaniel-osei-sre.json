@@ -1,0 +1,33 @@
+{
+  "candidate_id": "cand_15",
+  "name": "Nathaniel Osei",
+  "headline": "Site Reliability Engineer",
+  "location": "Columbus, OH",
+  "summary": "SRE with on-call and automation experience meeting the role's minimum bar. Cloud experience is primarily on GCP rather than the target provider.",
+  "current_company": "Buckeye Cloud Services",
+  "current_role": "Site Reliability Engineer",
+  "experience": [
+    {
+      "company": "Buckeye Cloud Services",
+      "role": "Site Reliability Engineer",
+      "duration": "2 years",
+      "description": "On-call rotation, incident response, and automation tooling on GCP."
+    }
+  ],
+  "education": [
+    {
+      "institution": "Ohio State University",
+      "degree": "B.S. Computer Engineering",
+      "year": 2020
+    }
+  ],
+  "skills": [
+    "GCP",
+    "Python",
+    "Terraform",
+    "Prometheus",
+    "Bash"
+  ],
+  "connections": 230,
+  "profile_url": "https://linkedin.com/in/nathaniel-osei-sre"
+}

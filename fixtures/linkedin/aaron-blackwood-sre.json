@@ -1,0 +1,25 @@
+{
+  "candidate_id": "cand_21",
+  "name": "A. Blackwood",
+  "headline": "SRE",
+  "location": "Salt Lake City, UT",
+  "summary": "SRE background; profile name formatting differs slightly from resume submission (A. Blackwood vs. Aaron Blackwood).",
+  "current_company": "Peak Reliability Co",
+  "current_role": "Site Reliability Engineer",
+  "experience": [
+    {
+      "company": "Peak Reliability Co",
+      "role": "Site Reliability Engineer",
+      "duration": "2 years",
+      "description": "On-call, incident response."
+    }
+  ],
+  "education": [],
+  "skills": [
+    "Linux",
+    "Bash",
+    "Monitoring"
+  ],
+  "connections": 60,
+  "profile_url": "https://linkedin.com/in/aaron-blackwood-sre"
+}

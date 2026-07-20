@@ -1,0 +1,44 @@
+{
+  "candidate_id": "cand_12",
+  "name": "Keisha Brown",
+  "headline": "ML Practitioner | Former Math Teacher | Bootcamp Grad",
+  "location": "Atlanta, GA",
+  "summary": "Self-taught ML practitioner and former high school math teacher. Transitioned into ML via an intensive bootcamp, followed by 18 months of freelance contract data-science work.",
+  "current_company": "Freelance",
+  "current_role": "Freelance ML Contractor",
+  "experience": [
+    {
+      "company": "Freelance",
+      "role": "ML Contractor",
+      "duration": "18 months",
+      "description": "Kaggle-style freelance contracts: feature engineering, model tuning, small-scale deployment."
+    },
+    {
+      "company": "Fulton County Schools",
+      "role": "High School Math Teacher",
+      "duration": "6 years",
+      "description": "Taught AP Statistics and Calculus prior to career transition."
+    }
+  ],
+  "education": [
+    {
+      "institution": "Lambda School / ML Bootcamp",
+      "degree": "ML Engineering Certificate",
+      "year": 2023
+    },
+    {
+      "institution": "Spelman College",
+      "degree": "B.A. Mathematics",
+      "year": 2014
+    }
+  ],
+  "skills": [
+    "Python",
+    "scikit-learn",
+    "XGBoost",
+    "Pandas",
+    "Statistics"
+  ],
+  "connections": 260,
+  "profile_url": "https://linkedin.com/in/keisha-brown-ml"
+}

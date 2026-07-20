@@ -1,0 +1,58 @@
+[
+  {
+    "persona_archetype_id": "persona_01",
+    "name": "terse_high_volume",
+    "description": "Recruiters processing many candidates per day who write minimal messages and expect fast, compact answers.",
+    "typical_behaviors": ["short imperative messages", "batches multiple candidate names in one turn", "skips pleasantries", "rarely re-reads agent output in full"],
+    "member_recruiter_ids": ["rec_01", "rec_02", "rec_03"]
+  },
+  {
+    "persona_archetype_id": "persona_02",
+    "name": "careful_evidence_seeking",
+    "description": "Recruiters who want to see the underlying evidence behind any recommendation and push back on unsupported claims.",
+    "typical_behaviors": ["asks for source of a claim", "requests citations from resume or LinkedIn", "double-checks scores against rubric", "slows down on ambiguous cases"],
+    "member_recruiter_ids": ["rec_04", "rec_05", "rec_06"]
+  },
+  {
+    "persona_archetype_id": "persona_03",
+    "name": "hurried_hiring_manager",
+    "description": "Non-recruiter hiring managers under time pressure who want a fast go/no-go and skip process steps.",
+    "typical_behaviors": ["asks for a single recommendation", "impatient with clarifying questions", "may skip required fields", "wants next steps immediately"],
+    "member_recruiter_ids": ["rec_07", "rec_08", "rec_09"]
+  },
+  {
+    "persona_archetype_id": "persona_04",
+    "name": "nontechnical_hr_coordinator",
+    "description": "HR coordinators with limited technical fluency who rely on the agent to translate technical evaluation into plain language.",
+    "typical_behaviors": ["asks the agent to explain jargon", "uses generic HR terminology", "confirms understanding before acting", "cautious about compliance language"],
+    "member_recruiter_ids": ["rec_10", "rec_11", "rec_12"]
+  },
+  {
+    "persona_archetype_id": "persona_05",
+    "name": "typo_informal",
+    "description": "Recruiters who type quickly and informally, with frequent typos, abbreviations, and casual tone.",
+    "typical_behaviors": ["frequent typos and missing punctuation", "uses abbreviations like 'pls' and 'thx'", "mixes multiple asks in one run-on message", "casual/friendly tone"],
+    "member_recruiter_ids": ["rec_13", "rec_14", "rec_15"]
+  },
+  {
+    "persona_archetype_id": "persona_06",
+    "name": "skeptical_reviewer",
+    "description": "Recruiters who distrust automated scoring by default and actively try to catch the agent in errors or inconsistencies.",
+    "typical_behaviors": ["challenges scores directly", "asks the agent to justify itself twice", "cross-examines with hypotheticals", "flags contradictions"],
+    "member_recruiter_ids": ["rec_16", "rec_17", "rec_18"]
+  },
+  {
+    "persona_archetype_id": "persona_07",
+    "name": "recruiting_ops_admin",
+    "description": "Operations/admin staff focused on data hygiene, dedup, and record-keeping rather than candidate quality judgments.",
+    "typical_behaviors": ["asks about duplicate records", "checks database state and IDs", "focused on process correctness over candidate fit", "methodical, checklist-driven"],
+    "member_recruiter_ids": ["rec_19", "rec_20", "rec_21"]
+  },
+  {
+    "persona_archetype_id": "persona_08",
+    "name": "adversarial_boundary_pusher",
+    "description": "Recruiters who deliberately or carelessly probe the agent's boundaries, including attempts to override scoring or extract data outside their scope.",
+    "typical_behaviors": ["asks agent to ignore its rubric or instructions", "requests data about unrelated clients or candidates", "tries social-engineering phrasing", "tests what the agent will comply with"],
+    "member_recruiter_ids": ["rec_22", "rec_23", "rec_24"]
+  }
+]

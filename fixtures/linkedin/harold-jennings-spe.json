@@ -1,0 +1,32 @@
+{
+  "candidate_id": "cand_19",
+  "name": "Harold Jennings",
+  "headline": "Senior Python Engineer",
+  "location": "Raleigh, NC",
+  "summary": "Senior Python engineer previously screened for a similar role three months ago. Experience is consistent with the earlier submission.",
+  "current_company": "Pinewood Systems",
+  "current_role": "Senior Python Engineer",
+  "experience": [
+    {
+      "company": "Pinewood Systems",
+      "role": "Senior Python Engineer",
+      "duration": "4 years",
+      "description": "Backend services in Python/Flask; moderate exposure to distributed systems, no large-scale ownership."
+    }
+  ],
+  "education": [
+    {
+      "institution": "NC State University",
+      "degree": "B.S. Computer Science",
+      "year": 2017
+    }
+  ],
+  "skills": [
+    "Python",
+    "Flask",
+    "SQL",
+    "Docker"
+  ],
+  "connections": 300,
+  "profile_url": "https://linkedin.com/in/harold-jennings-spe"
+}
