@@ -18,6 +18,12 @@ WEBSITE_FIXTURES_DIR = PROJECT_ROOT / "fixtures" / "websites"
 WEBSITE_FIXTURE_MAP = {
     "dianapatel.io": "diana-patel.html",
     "alicechen.dev": "alice-chen.html",
+    "gracendlovu.dev": "gracendlovu.html",
+    "tobiasreinholt.io": "tobiasreinholt.html",
+    "keishabrown.dev": "keishabrown.html",
+    "sofiamarchetti.io": "sofiamarchetti.html",
+    "wendyzhou.dev": "wendyzhou.html",
+    "ingridlarsen.io": "ingridlarsen.html",
 }
 MAX_WEBSITE_CHARS = 2000
 

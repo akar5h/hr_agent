@@ -80,7 +80,7 @@ def _record_decision(
                 (candidate_id, position_id, client_id, decision, reason,
                  decided_by_session, idempotency_key)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (idempotency_key) DO NOTHING
+            ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
             RETURNING id, decision, reason, decided_at
             """,
             (candidate_id, position_id, client_id, decision, reason, session_id, key),
@@ -119,7 +119,7 @@ def _record_email(
                 (candidate_id, client_id, subject, body, status, provider,
                  created_by_session, idempotency_key)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (idempotency_key) DO NOTHING
+            ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
             RETURNING id, subject, status, created_at
             """,
             (candidate_id, client_id, subject, body, "queued", "mock", session_id, key),
