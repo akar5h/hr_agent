@@ -190,6 +190,30 @@ def _generate_sql(query_intent: str, client_id: str) -> str:
     return generated
 
 
+def _record_sqlgen_span(query_intent: str, sql: str, executed_ok: bool, error: str | None) -> None:
+    """Sub-model span for the SQL generator: the generated SQL + safety signals.
+    Observability only; best-effort, never breaks the query."""
+    try:
+        from src.guardrails.session_context import get_session_id
+        from src.observability.trace_capture import record_sub_agent
+
+        record_sub_agent(
+            get_session_id(),
+            {
+                "type": "sql_generator",
+                "tool": "query_database",
+                "model": DEFAULT_SQLGEN_MODEL,
+                "query_intent": query_intent,
+                "generated_sql": (sql or "")[:2000],
+                "client_id_filter_present": "client_id" in (sql or "").lower(),
+                "executed_ok": executed_ok,
+                "error": error,
+            },
+        )
+    except Exception:
+        pass
+
+
 @tool(args_schema=QueryDatabaseInput)
 def query_database(query_intent: str, client_id: str) -> list[dict]:
     """Query the database using natural language. Converts to SQL and executes."""
@@ -198,8 +222,10 @@ def query_database(query_intent: str, client_id: str) -> list[dict]:
         sql = _generate_sql(query_intent, client_id)
         with get_db() as conn:
             rows = conn.execute(sql).fetchall()
+        _record_sqlgen_span(query_intent, sql, True, None)
         return [dict(row) for row in rows]
     except Exception as exc:
+        _record_sqlgen_span(query_intent, sql, False, str(exc))
         return [{"error": str(exc), "generated_sql": sql}]
 
 

@@ -165,7 +165,6 @@ class HrAgentBridge:
                     "turn": turn_no,
                     "role": "assistant",
                     "tool_calls": [],
-                    "tool_results": [],
                     "tokens": {"input_tokens": 0, "output_tokens": 0},
                     "ts": _now_iso(),
                     "error": error_text,
@@ -183,8 +182,7 @@ class HrAgentBridge:
             {
                 "turn": turn_no,
                 "role": "assistant",
-                "tool_calls": result["tool_calls"],
-                "tool_results": result["tool_results"],
+                "tool_calls": result["tool_calls"],  # enriched: name/arguments/result_summary/status/error/latency_ms/cached
                 "tokens": result["usage"],
                 "ts": _now_iso(),
             }
@@ -268,15 +266,38 @@ class HrAgentBridge:
             if isinstance(content, str) and content:
                 final_response = content
 
-        # Capture tool observations for THIS turn only (join on the tool_call ids this
-        # turn emitted; the streamed state also carries prior turns' ToolMessages).
-        this_turn_ids = {tc["id"] for tc in tool_calls if tc.get("id")}
-        tool_results = _extract_tool_results(last_messages, this_turn_ids)
+        # Authoritative tool-call capture: the agent's _wrap_tool records each call with
+        # full arguments, result_summary, status, error, latency_ms, cached (schema v2).
+        # Fall back to message reconstruction (name+args+result only) if unavailable.
+        structured: list[dict[str, Any]] = []
+        try:
+            from src.graph.workflow import get_turn_tool_calls
+
+            structured = get_turn_tool_calls(self.session_id)
+        except Exception:
+            structured = []
+
+        if structured:
+            enriched = structured
+        else:
+            this_turn_ids = {tc["id"] for tc in tool_calls if tc.get("id")}
+            res_by_id = {r["tool_call_id"]: r for r in _extract_tool_results(last_messages, this_turn_ids)}
+            enriched = [
+                {
+                    "name": tc.get("name"),
+                    "arguments": tc.get("args"),
+                    "result_summary": (res_by_id.get(tc.get("id")) or {}).get("result"),
+                    "status": "ok",
+                    "error": None,
+                    "latency_ms": None,
+                    "cached": False,
+                }
+                for tc in tool_calls
+            ]
 
         return {
             "response": final_response,
-            "tool_calls": tool_calls,
-            "tool_results": tool_results,
+            "tool_calls": enriched,
             "usage": usage_total,
             "duration_ms": int((time.monotonic() - t0) * 1000),
         }

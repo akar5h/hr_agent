@@ -220,6 +220,7 @@ def run_scenario(scenario: dict[str, Any], index: int) -> dict[str, Any]:
     ledger_before = cost_ledger.snapshot()
 
     record: dict[str, Any] = {
+        "schema_version": NORMALIZED_TRACE_SCHEMA_VERSION,
         "case_id": case_id,
         "session_id": session_id,
         "client_id": client_id,
@@ -268,9 +269,25 @@ def run_scenario(scenario: dict[str, Any], index: int) -> dict[str, Any]:
         ]
         record["decision_observable"] = _capture_decision_observable(session_id, bridge.events)
         record["system_prompt"] = _capture_system_prompt(client_id, session_id)
+        record["sub_agents"] = _capture_sub_agents(session_id)
         record["finished_at"] = _now_iso()
 
     return record
+
+
+NORMALIZED_TRACE_SCHEMA_VERSION = "normalized-trace-v2"
+
+
+def _capture_sub_agents(session_id: str) -> list[dict[str, Any]]:
+    """Drain the per-scenario sub-agent / sub-model spans (ATS + SQL-gen). Fail-soft."""
+    try:
+        from src.observability.trace_capture import get_sub_agents, reset_sub_agents
+
+        spans = get_sub_agents(session_id)
+        reset_sub_agents(session_id)
+        return spans
+    except Exception:
+        return []
 
 
 def _capture_system_prompt(client_id: str, session_id: str) -> dict[str, Any]:
@@ -303,7 +320,7 @@ def _capture_decision_observable(session_id: str, events: list[dict[str, Any]]) 
     for e in events:
         for tc in (e.get("tool_calls") or []):
             if tc.get("name") == "submit_evaluation":
-                obs["evaluation_calls"].append(tc.get("args"))
+                obs["evaluation_calls"].append(tc.get("arguments") or tc.get("args"))
     try:
         from src.database.db import get_db
 

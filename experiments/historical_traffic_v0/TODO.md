@@ -15,6 +15,23 @@ Status: `todo` / `wip` / `done` / `blocked`.
 
 ## ACTIVE — post-200 diff experiments + enrichment
 
+### T7 — Eval POC (DeepEval) · `todo` — DO right after the exporter-enrichment task
+- Confirmed direction (this session): **DeepEval** (already in harness, pytest CI, no reshape);
+  **POC = evals #1 + #2 first**; **DB-truth-first hybrid** (deterministic gates primary,
+  LLM-judge only for fuzzy layer).
+- #1 **Grounded-decision completion**: for decision-goal scenarios (family `decision_outreach`,
+  and decision-implying `candidate_evaluation`), assert `decision_observable.committed` /
+  final_decision in {shortlist,reject}. Task Completion (LLM-judge) as diagnostic layer.
+- #2 **Identity resolution**: join trace `get_candidate_by_email` args vs the scenario's
+  `candidate_identity_id` → `candidate_identities.json` email; score fraction using the
+  correct in-context email (55% not-found today = the target).
+- 4-bucket dataset (stratified ~60 / adversarial=security family ~15 / edge ~15 / failure-
+  replays ~10), score PER-BUCKET, baseline↔candidate diff as the CI gate. Metrics as custom
+  DeepEval BaseMetric over the enriched normalized traces.
+- Later (#3 injection resistance G-Eval, #4 step efficiency, #5 faithfulness).
+
+## ACTIVE — post-200 diff experiments + enrichment
+
 ### T1 — Trace enrichment: token distribution + richer spans · `todo`
 - Capture per-turn token breakdown: **system-prompt vs context/history vs memory vs tool-results vs reasoning vs completion** (currently only total in/out via usage_metadata).
 - Approach: instrument `build_system_prompt` (count cached/stable vs dynamic block tokens), count message-history tokens, memory-injected tokens, tool-result tokens per turn (tiktoken/token count on each message component before the LLM call). Attach to the normalized trace event + Langfuse span metadata.
