@@ -184,7 +184,8 @@ Prioritized work. Set status when it changes: `todo` / `in-progress` / `done` / 
 | ID | Task | Status | Trace |
 |----|------|--------|-------|
 | P0.1 | Decision-memory system (CLAUDE.md + journal hook + this doc) | done | this session |
-| P1.1 | Candidate release v1: eval→decide reframe + tool-result/system-prompt capture | in-progress | D11, c02e161, ece0407 |
-| P1.2 | Rerun 200 on candidate (own EC2 + DB `exp_code`) → `out/run_200_codefix/` | todo | CHANGE_HYPOTHESIS §7 |
-| P1.3 | RUN_MANIFEST.json + rerun case-ID list + diff vs baseline | todo | D11 |
-| T3 | Model-change exp: 200 on qwen3-32b (own EC2 + DB `exp_model`) | in-progress | TODO T3 |
+| P1.1 | Candidate release v1: eval→decide reframe + tool-result/system-prompt capture | done | D11, c02e161, ece0407 |
+| P1.2 | Rerun 200 on candidate (EC2 i-016 + DB `exp_code`) → `out/run_200_codefix/` | done | 189/200, $4.76 |
+| P1.3 | RUN_MANIFEST + rerun case-IDs + diff vs baseline → `DIFF_REPORT.md` | done | D11 |
+| T3 | Model-change exp: 200 on qwen3-32b (EC2 i-007 + DB `exp_model`) → `out/run_200_qwen32b/` | done | 191/200, $2.54 |
+| P1.4 | Manual teardown: terminate orphan EC2 `i-071d1a2189311a709` (needs admin IAM) | todo | user action |
