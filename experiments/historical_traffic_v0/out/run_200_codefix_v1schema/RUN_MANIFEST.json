@@ -1,0 +1,34 @@
+{
+  "experiment": "P1.2 code-change candidate v1 (eval->decide reframe)",
+  "compares_against": "out/run_200 (baseline v0, 235b)",
+  "code_tarball": "hrai_code_codefix.tgz",
+  "code_tarball_md5": "a426cb5c5fe433403ffe1b0ac0143c34",
+  "commit": "69096f0",
+  "agent_model": "qwen.qwen3-235b-a22b-2507-v1:0",
+  "sqlgen_model": "qwen.qwen3-32b-v1:0",
+  "fallback_model": "moonshotai.kimi-k2.5",
+  "prompt_version": "candidate-screening-v3-decision-followthrough",
+  "temp": 0,
+  "dbname": "exp_code",
+  "box": "i-016a9a231189e0894",
+  "scenarios": [
+    "scenarios_150.jsonl",
+    "scenarios_50b.jsonl"
+  ],
+  "scenario_count": 200,
+  "simulator": [
+    "moonshotai.kimi-k2.5",
+    "zai.glm-4.7"
+  ],
+  "flags": {
+    "ENABLE_LANGFUSE": true,
+    "ENABLE_HARDENING": false,
+    "ENABLE_NEMO_GUARDRAILS": false,
+    "ENABLE_PROMPT_CACHE": false,
+    "MAX_TOOL_CALLS_PER_TURN": 25
+  },
+  "completed": 189,
+  "harness_error": 11,
+  "total_usd": 4.76,
+  "harness_change": "traces now capture tool_results + system_prompt (ece0407)"
+}

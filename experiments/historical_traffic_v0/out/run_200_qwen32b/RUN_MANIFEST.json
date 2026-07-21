@@ -1,35 +1,26 @@
 {
-  "experiment": "T3 model-change (qwen3-32b, NO code change)",
-  "compares_against": "out/run_200 (baseline v0, 235b)",
-  "code_tarball": "hrai_code_qwen32b.tgz",
-  "code_tarball_md5": "26980c86c413651b62d492196d5d1fa3",
-  "base_commit": "69096f0 (agent files reverted to 20c6de1 baseline = v0 agent)",
-  "agent_model": "qwen.qwen3-32b-v1:0",
-  "sqlgen_model": "qwen.qwen3-32b-v1:0",
-  "fallback_model": "moonshotai.kimi-k2.5",
-  "prompt_version": "candidate-screening-v2-reliability",
-  "temp": 0,
-  "dbname": "exp_model",
-  "box": "i-007276db6f353b4da",
   "scenarios": [
     "scenarios_150.jsonl",
     "scenarios_50b.jsonl"
   ],
   "scenario_count": 200,
+  "temp": 0,
   "simulator": [
     "moonshotai.kimi-k2.5",
     "zai.glm-4.7"
   ],
+  "schema_version": "normalized-trace-v2",
+  "exporter_commit": "ca52bc8",
   "flags": {
     "ENABLE_LANGFUSE": true,
     "ENABLE_HARDENING": false,
-    "ENABLE_NEMO_GUARDRAILS": false,
-    "ENABLE_PROMPT_CACHE": false,
-    "MAX_TOOL_CALLS_PER_TURN": 25
+    "ENABLE_PROMPT_CACHE": false
   },
-  "completed": 191,
-  "harness_error": 9,
-  "total_usd": 2.54,
-  "driven_by": "main session via SSM (subagents retired)",
-  "harness_change": "traces capture tool_results + system_prompt (same harness as codefix)"
+  "experiment": "model-change qwen3-32b v2 (v0 agent)",
+  "agent_model": "qwen.qwen3-32b-v1:0",
+  "code_tarball": "hrai_v0agent_v2.tgz",
+  "prompt_version": "candidate-screening-v2-reliability",
+  "dbname": "exp_model",
+  "box": "i-007276db6f353b4da",
+  "completed": 189
 }

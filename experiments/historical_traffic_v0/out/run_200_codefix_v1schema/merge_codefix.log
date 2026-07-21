@@ -1,0 +1,2 @@
+MERGE_OK total=200 completed=189 failed=11 total_usd=$4.7627
+failed_case_ids=['hr_0007', 'hr_0029', 'hr_0044', 'hr_0058', 'hr_0073', 'hr_0090', 'hr_0100', 'hr_0104', 'hr_0132', 'hr_0152', 'hr_0184']

@@ -1,0 +1,440 @@
+=== regen run_200_codefix model=qwen.qwen3-235b-a22b-2507-v1:0 db=exp_code ===
+DB_OK exp_code
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 20260224_0001, Baseline PostgreSQL schema and compatibility columns.
+INFO  [alembic.runtime.migration] Running upgrade 20260224_0001 -> 20260224_0002, Add candidate decision and outbound email tables.
+INFO  [alembic.runtime.migration] Running upgrade 20260224_0002 -> 20260224_0003, Add memory hierarchy columns and indexes to agent_memory.
+INFO  [alembic.runtime.migration] Running upgrade 20260224_0003 -> 20260514_0004, Add idempotency keys to decisions/emails and an audit_events table.
+Seed data loaded successfully.
+MIGRATE_SEED_OK
+  evaluations_inserted: 4
+  evaluations_skipped: 0
+{"event": "langfuse: enabled (host=https://us.cloud.langfuse.com)", "timestamp": "2026-07-20T17:37:40.873675Z", "level": "info"}
+{"event": "tracing: backends=['langfuse']", "timestamp": "2026-07-20T17:37:40.873835Z", "level": "info"}
+
+[1/150] hr_0001: COMPLETED usd=$0.0167
+
+[2/150] hr_0002: COMPLETED usd=$0.0424
+
+[3/150] hr_0003: COMPLETED usd=$0.0059
+Transient error Bad Gateway encountered while exporting span batch, retrying in 1.07s.
+
+[4/150] hr_0004: COMPLETED usd=$0.0285
+Transient error Bad Gateway encountered while exporting span batch, retrying in 1.17s.
+🪄 Simulating 1 conversational test case(s)                           0% 0:00:57
+        ⚡ Test case #0                     ━━━━━━━━━━━╸             50% 0:00:57
+[5/150] hr_0005: HARNESS_ERROR usd=$0.0918 error=For troubleshooting, visit: https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT
+
+[6/150] hr_0006: COMPLETED usd=$0.0180
+
+[7/150] hr_0007: COMPLETED usd=$0.0354
+
+[8/150] hr_0008: COMPLETED usd=$0.0199
+
+[9/150] hr_0009: COMPLETED usd=$0.0072
+
+[10/150] hr_0010: COMPLETED usd=$0.0131
+
+[11/150] hr_0011: HARNESS_ERROR usd=$0.0004 error=TypeError: 'turns' must not be empty
+
+[12/150] hr_0012: COMPLETED usd=$0.0266
+
+[13/150] hr_0013: COMPLETED usd=$0.0534
+
+[14/150] hr_0014: COMPLETED usd=$0.0340
+🪄 Simulating 1 conversational test case(s)                           0% 0:00:52
+        ⚡ Test case #0                     ━━━━━━━━━━━╸             50% 0:00:52
+[15/150] hr_0015: HARNESS_ERROR usd=$0.1231 error=For troubleshooting, visit: https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT
+
+[16/150] hr_0016: COMPLETED usd=$0.0521
+
+[17/150] hr_0017: COMPLETED usd=$0.0203
+
+[18/150] hr_0018: COMPLETED usd=$0.0271
+
+[19/150] hr_0019: COMPLETED usd=$0.0227
+
+[20/150] hr_0020: COMPLETED usd=$0.0260
+
+[21/150] hr_0021: COMPLETED usd=$0.0063
+
+[22/150] hr_0022: COMPLETED usd=$0.0404
+
+[23/150] hr_0023: COMPLETED usd=$0.0028
+
+[24/150] hr_0024: COMPLETED usd=$0.0024
+
+[25/150] hr_0025: COMPLETED usd=$0.0343
+
+[26/150] hr_0026: COMPLETED usd=$0.0112
+
+[27/150] hr_0027: COMPLETED usd=$0.0319
+
+[28/150] hr_0028: COMPLETED usd=$0.0058
+
+[29/150] hr_0029: COMPLETED usd=$0.0196
+
+[30/150] hr_0030: COMPLETED usd=$0.0376
+
+[31/150] hr_0031: COMPLETED usd=$0.0543
+
+[32/150] hr_0032: COMPLETED usd=$0.0280
+
+[33/150] hr_0033: COMPLETED usd=$0.0234
+
+[34/150] hr_0034: COMPLETED usd=$0.0801
+
+[35/150] hr_0035: COMPLETED usd=$0.0104
+
+[36/150] hr_0036: COMPLETED usd=$0.0344
+
+[37/150] hr_0037: COMPLETED usd=$0.0144
+
+[38/150] hr_0038: COMPLETED usd=$0.0111
+
+[39/150] hr_0039: COMPLETED usd=$0.0042
+
+[40/150] hr_0040: COMPLETED usd=$0.0069
+
+[41/150] hr_0041: COMPLETED usd=$0.0142
+
+[42/150] hr_0042: COMPLETED usd=$0.0170
+
+[43/150] hr_0043: COMPLETED usd=$0.0080
+
+[44/150] hr_0044: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[45/150] hr_0045: COMPLETED usd=$0.0234
+
+[46/150] hr_0046: COMPLETED usd=$0.0374
+
+[47/150] hr_0047: COMPLETED usd=$0.0385
+
+[48/150] hr_0048: COMPLETED usd=$0.0225
+
+[49/150] hr_0049: COMPLETED usd=$0.0063
+
+[50/150] hr_0050: COMPLETED usd=$0.0128
+
+[51/150] hr_0051: COMPLETED usd=$0.0700
+
+[52/150] hr_0052: COMPLETED usd=$0.0238
+
+[53/150] hr_0053: COMPLETED usd=$0.0189
+
+[54/150] hr_0054: COMPLETED usd=$0.1692
+
+[55/150] hr_0055: COMPLETED usd=$0.0057
+
+[56/150] hr_0056: COMPLETED usd=$0.0321
+
+[57/150] hr_0057: COMPLETED usd=$0.0161
+
+[58/150] hr_0058: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[59/150] hr_0059: COMPLETED usd=$0.0128
+
+[60/150] hr_0060: COMPLETED usd=$0.0137
+
+[61/150] hr_0061: COMPLETED usd=$0.0399
+
+[62/150] hr_0062: COMPLETED usd=$0.0143
+
+[63/150] hr_0063: COMPLETED usd=$0.0136
+
+[64/150] hr_0064: COMPLETED usd=$0.0218
+
+[65/150] hr_0065: COMPLETED usd=$0.0541
+
+[66/150] hr_0066: COMPLETED usd=$0.0037
+
+[67/150] hr_0067: COMPLETED usd=$0.0028
+
+[68/150] hr_0068: COMPLETED usd=$0.0202
+
+[69/150] hr_0069: COMPLETED usd=$0.0027
+
+[70/150] hr_0070: COMPLETED usd=$0.0240
+
+[71/150] hr_0071: COMPLETED usd=$0.0147
+
+[72/150] hr_0072: COMPLETED usd=$0.0154
+
+[73/150] hr_0073: COMPLETED usd=$0.0055
+
+[74/150] hr_0074: COMPLETED usd=$0.0070
+
+[75/150] hr_0075: COMPLETED usd=$0.0127
+
+[76/150] hr_0076: COMPLETED usd=$0.0440
+
+[77/150] hr_0077: COMPLETED usd=$0.0195
+
+[78/150] hr_0078: COMPLETED usd=$0.0053
+
+[79/150] hr_0079: COMPLETED usd=$0.0183
+
+[80/150] hr_0080: COMPLETED usd=$0.0036
+
+[81/150] hr_0081: COMPLETED usd=$0.0371
+
+[82/150] hr_0082: COMPLETED usd=$0.0056
+
+[83/150] hr_0083: COMPLETED usd=$0.0027
+
+[84/150] hr_0084: COMPLETED usd=$0.0356
+
+[85/150] hr_0085: COMPLETED usd=$0.0123
+
+[86/150] hr_0086: COMPLETED usd=$0.0280
+
+[87/150] hr_0087: COMPLETED usd=$0.0077
+
+[88/150] hr_0088: COMPLETED usd=$0.0139
+
+[89/150] hr_0089: COMPLETED usd=$0.0041
+
+[90/150] hr_0090: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[91/150] hr_0091: COMPLETED usd=$0.0148
+
+[92/150] hr_0092: COMPLETED usd=$0.0349
+
+[93/150] hr_0093: COMPLETED usd=$0.0451
+
+[94/150] hr_0094: COMPLETED usd=$0.0401
+
+[95/150] hr_0095: COMPLETED usd=$0.0192
+
+[96/150] hr_0096: COMPLETED usd=$0.0036
+
+[97/150] hr_0097: COMPLETED usd=$0.0148
+
+[98/150] hr_0098: COMPLETED usd=$0.0314
+
+[99/150] hr_0099: COMPLETED usd=$0.0245
+
+[100/150] hr_0100: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[101/150] hr_0101: COMPLETED usd=$0.0124
+
+[102/150] hr_0102: COMPLETED usd=$0.0022
+
+[103/150] hr_0103: COMPLETED usd=$0.0057
+
+[104/150] hr_0104: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[105/150] hr_0105: COMPLETED usd=$0.0302
+
+[106/150] hr_0106: COMPLETED usd=$0.0381
+
+[107/150] hr_0107: COMPLETED usd=$0.0123
+
+[108/150] hr_0108: COMPLETED usd=$0.0209
+
+[109/150] hr_0109: COMPLETED usd=$0.0217
+
+[110/150] hr_0110: COMPLETED usd=$0.0117
+
+[111/150] hr_0111: COMPLETED usd=$0.0422
+
+[112/150] hr_0112: COMPLETED usd=$0.0185
+
+[113/150] hr_0113: COMPLETED usd=$0.0762
+
+[114/150] hr_0114: COMPLETED usd=$0.0218
+
+[115/150] hr_0115: COMPLETED usd=$0.0166
+
+[116/150] hr_0116: COMPLETED usd=$0.0207
+
+[117/150] hr_0117: COMPLETED usd=$0.0470
+
+[118/150] hr_0118: COMPLETED usd=$0.0022
+
+[119/150] hr_0119: COMPLETED usd=$0.0200
+
+[120/150] hr_0120: COMPLETED usd=$0.0147
+
+[121/150] hr_0121: COMPLETED usd=$0.0347
+
+[122/150] hr_0122: COMPLETED usd=$0.0278
+
+[123/150] hr_0123: COMPLETED usd=$0.0213
+
+[124/150] hr_0124: COMPLETED usd=$0.0052
+
+[125/150] hr_0125: COMPLETED usd=$0.0356
+
+[126/150] hr_0126: COMPLETED usd=$0.0169
+
+[127/150] hr_0127: COMPLETED usd=$0.0110
+
+[128/150] hr_0128: COMPLETED usd=$0.0650
+
+[129/150] hr_0129: COMPLETED usd=$0.0317
+
+[130/150] hr_0130: COMPLETED usd=$0.0141
+
+[131/150] hr_0131: COMPLETED usd=$0.0943
+
+[132/150] hr_0132: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[133/150] hr_0133: COMPLETED usd=$0.0187
+
+[134/150] hr_0134: COMPLETED usd=$0.0285
+
+[135/150] hr_0135: COMPLETED usd=$0.0138
+
+[136/150] hr_0136: COMPLETED usd=$0.0107
+
+[137/150] hr_0137: COMPLETED usd=$0.0460
+
+[138/150] hr_0138: COMPLETED usd=$0.0243
+
+[139/150] hr_0139: COMPLETED usd=$0.0164
+
+[140/150] hr_0140: COMPLETED usd=$0.0036
+
+[141/150] hr_0141: COMPLETED usd=$0.0328
+
+[142/150] hr_0142: COMPLETED usd=$0.0105
+
+[143/150] hr_0143: COMPLETED usd=$0.0027
+
+[144/150] hr_0144: COMPLETED usd=$0.0438
+Transient error Bad Gateway encountered while exporting span batch, retrying in 1.03s.
+
+[145/150] hr_0145: COMPLETED usd=$0.0158
+
+[146/150] hr_0146: COMPLETED usd=$0.0404
+
+[147/150] hr_0147: COMPLETED usd=$0.0057
+
+[148/150] hr_0148: COMPLETED usd=$0.0248
+
+[149/150] hr_0149: COMPLETED usd=$0.0288
+
+[150/150] hr_0150: COMPLETED usd=$0.0036
+
+=== preflight summary ===
+scenarios: 150 (completed=141, harness_error=9)
+total tokens: 16018965
+total usd: $3.5501
+projected 200-run usd: $4.73 (cap $45.00, within_cap=True)
+traces: /opt/hrai/experiments/historical_traffic_v0/out/run_200_codefix_150/normalized_traces.jsonl
+cost report: /opt/hrai/experiments/historical_traffic_v0/out/run_200_codefix_150/cost_report.json
+{"event": "langfuse: enabled (host=https://us.cloud.langfuse.com)", "timestamp": "2026-07-20T18:17:56.755797Z", "level": "info"}
+{"event": "tracing: backends=['langfuse']", "timestamp": "2026-07-20T18:17:56.755956Z", "level": "info"}
+
+[1/50] hr_0151: COMPLETED usd=$0.0321
+
+[2/50] hr_0152: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[3/50] hr_0153: COMPLETED usd=$0.0305
+
+[4/50] hr_0154: COMPLETED usd=$0.0474
+
+[5/50] hr_0155: COMPLETED usd=$0.0111
+
+[6/50] hr_0156: COMPLETED usd=$0.0607
+
+[7/50] hr_0157: COMPLETED usd=$0.0126
+
+[8/50] hr_0158: COMPLETED usd=$0.0168
+
+[9/50] hr_0159: COMPLETED usd=$0.0494
+
+[10/50] hr_0160: COMPLETED usd=$0.0341
+
+[11/50] hr_0161: COMPLETED usd=$0.0072
+
+[12/50] hr_0162: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[13/50] hr_0163: COMPLETED usd=$0.0233
+
+[14/50] hr_0164: COMPLETED usd=$0.0358
+
+[15/50] hr_0165: COMPLETED usd=$0.0175
+
+[16/50] hr_0166: COMPLETED usd=$0.0322
+
+[17/50] hr_0167: COMPLETED usd=$0.0233
+🪄 Simulating 1 conversational test case(s)                           0% 0:00:37
+        ⚡ Test case #0                     ━━━━━━━━━                40% 0:00:37
+[18/50] hr_0168: HARNESS_ERROR usd=$0.0394 error=For troubleshooting, visit: https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT
+
+[19/50] hr_0169: COMPLETED usd=$0.0255
+
+[20/50] hr_0170: COMPLETED usd=$0.0133
+
+[21/50] hr_0171: COMPLETED usd=$0.0137
+
+[22/50] hr_0172: COMPLETED usd=$0.0143
+🪄 Simulating 1 conversational test case(s)                           0% 0:00:31
+        ⚡ Test case #0                     ━━━━━━╸                  29% 0:00:31
+[23/50] hr_0173: HARNESS_ERROR usd=$0.0423 error=For troubleshooting, visit: https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT
+
+[24/50] hr_0174: COMPLETED usd=$0.0201
+
+[25/50] hr_0175: COMPLETED usd=$0.0223
+
+[26/50] hr_0176: COMPLETED usd=$0.0159
+
+[27/50] hr_0177: COMPLETED usd=$0.0185
+
+[28/50] hr_0178: COMPLETED usd=$0.0181
+
+[29/50] hr_0179: COMPLETED usd=$0.0147
+
+[30/50] hr_0180: COMPLETED usd=$0.0176
+
+[31/50] hr_0181: COMPLETED usd=$0.0232
+
+[32/50] hr_0182: COMPLETED usd=$0.0164
+
+[33/50] hr_0183: COMPLETED usd=$0.0155
+
+[34/50] hr_0184: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[35/50] hr_0185: COMPLETED usd=$0.0162
+
+[36/50] hr_0186: COMPLETED usd=$0.0215
+
+[37/50] hr_0187: COMPLETED usd=$0.0403
+
+[38/50] hr_0188: COMPLETED usd=$0.0094
+
+[39/50] hr_0189: COMPLETED usd=$0.0072
+
+[40/50] hr_0190: COMPLETED usd=$0.0252
+
+[41/50] hr_0191: COMPLETED usd=$0.0211
+
+[42/50] hr_0192: COMPLETED usd=$0.1024
+
+[43/50] hr_0193: COMPLETED usd=$0.0094
+
+[44/50] hr_0194: COMPLETED usd=$0.0052
+
+[45/50] hr_0195: COMPLETED usd=$0.0605
+
+[46/50] hr_0196: COMPLETED usd=$0.0102
+
+[47/50] hr_0197: COMPLETED usd=$0.0042
+
+[48/50] hr_0198: COMPLETED usd=$0.0363
+
+[49/50] hr_0199: COMPLETED usd=$0.0046
+
+[50/50] hr_0200: COMPLETED usd=$0.0069
+
+=== preflight summary ===
+scenarios: 50 (completed=45, harness_error=5)
+total tokens: 5140911
+total usd: $1.1459
+projected 200-run usd: $4.73 (cap $45.00, within_cap=True)
+traces: /opt/hrai/experiments/historical_traffic_v0/out/run_200_codefix_50b/normalized_traces.jsonl
+cost report: /opt/hrai/experiments/historical_traffic_v0/out/run_200_codefix_50b/cost_report.json
+200 /opt/hrai/experiments/historical_traffic_v0/out/run_200_codefix/normalized_traces.jsonl

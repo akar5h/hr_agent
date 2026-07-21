@@ -1,0 +1,440 @@
+=== regen run_200 model=qwen.qwen3-235b-a22b-2507-v1:0 db=exp_base ===
+DB_OK exp_base
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 20260224_0001, Baseline PostgreSQL schema and compatibility columns.
+INFO  [alembic.runtime.migration] Running upgrade 20260224_0001 -> 20260224_0002, Add candidate decision and outbound email tables.
+INFO  [alembic.runtime.migration] Running upgrade 20260224_0002 -> 20260224_0003, Add memory hierarchy columns and indexes to agent_memory.
+INFO  [alembic.runtime.migration] Running upgrade 20260224_0003 -> 20260514_0004, Add idempotency keys to decisions/emails and an audit_events table.
+Seed data loaded successfully.
+MIGRATE_SEED_OK
+  evaluations_inserted: 4
+  evaluations_skipped: 0
+{"event": "langfuse: enabled (host=https://us.cloud.langfuse.com)", "timestamp": "2026-07-20T17:37:38.224894Z", "level": "info"}
+{"event": "tracing: backends=['langfuse']", "timestamp": "2026-07-20T17:37:38.225057Z", "level": "info"}
+
+[1/150] hr_0001: COMPLETED usd=$0.0201
+
+[2/150] hr_0002: COMPLETED usd=$0.0871
+
+[3/150] hr_0003: COMPLETED usd=$0.0053
+
+[4/150] hr_0004: COMPLETED usd=$0.0205
+
+[5/150] hr_0005: COMPLETED usd=$0.0857
+
+[6/150] hr_0006: COMPLETED usd=$0.0395
+
+[7/150] hr_0007: COMPLETED usd=$0.0172
+
+[8/150] hr_0008: COMPLETED usd=$0.0070
+
+[9/150] hr_0009: COMPLETED usd=$0.0292
+
+[10/150] hr_0010: COMPLETED usd=$0.0327
+
+[11/150] hr_0011: COMPLETED usd=$0.0124
+
+[12/150] hr_0012: COMPLETED usd=$0.0291
+
+[13/150] hr_0013: COMPLETED usd=$0.0404
+
+[14/150] hr_0014: COMPLETED usd=$0.0182
+
+[15/150] hr_0015: COMPLETED usd=$0.0727
+
+[16/150] hr_0016: COMPLETED usd=$0.0401
+
+[17/150] hr_0017: COMPLETED usd=$0.0278
+
+[18/150] hr_0018: COMPLETED usd=$0.0415
+
+[19/150] hr_0019: COMPLETED usd=$0.0228
+
+[20/150] hr_0020: COMPLETED usd=$0.0160
+
+[21/150] hr_0021: COMPLETED usd=$0.0060
+
+[22/150] hr_0022: COMPLETED usd=$0.0265
+
+[23/150] hr_0023: COMPLETED usd=$0.0026
+
+[24/150] hr_0024: COMPLETED usd=$0.0025
+
+[25/150] hr_0025: COMPLETED usd=$0.0330
+
+[26/150] hr_0026: COMPLETED usd=$0.0205
+
+[27/150] hr_0027: COMPLETED usd=$0.0570
+
+[28/150] hr_0028: COMPLETED usd=$0.0055
+🪄 Simulating 1 conversational test case(s)                           0% 0:00:02
+        ⚡ Test case #0                     ━━╸                      12% 0:00:02
+[29/150] hr_0029: HARNESS_ERROR usd=$0.0023 error=During task with name 'model' and id 'ee656f0d-66fe-d13e-623b-a934efa03a3e'
+
+[30/150] hr_0030: COMPLETED usd=$0.0219
+
+[31/150] hr_0031: COMPLETED usd=$0.0785
+
+[32/150] hr_0032: COMPLETED usd=$0.0192
+
+[33/150] hr_0033: COMPLETED usd=$0.0558
+
+[34/150] hr_0034: COMPLETED usd=$0.0949
+
+[35/150] hr_0035: COMPLETED usd=$0.0131
+
+[36/150] hr_0036: COMPLETED usd=$0.0733
+
+[37/150] hr_0037: COMPLETED usd=$0.0204
+
+[38/150] hr_0038: COMPLETED usd=$0.0415
+
+[39/150] hr_0039: COMPLETED usd=$0.0040
+
+[40/150] hr_0040: COMPLETED usd=$0.0061
+
+[41/150] hr_0041: COMPLETED usd=$0.0224
+
+[42/150] hr_0042: COMPLETED usd=$0.0229
+
+[43/150] hr_0043: COMPLETED usd=$0.0077
+
+[44/150] hr_0044: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[45/150] hr_0045: COMPLETED usd=$0.0188
+
+[46/150] hr_0046: COMPLETED usd=$0.0343
+
+[47/150] hr_0047: COMPLETED usd=$0.0287
+
+[48/150] hr_0048: COMPLETED usd=$0.0348
+
+[49/150] hr_0049: COMPLETED usd=$0.0060
+
+[50/150] hr_0050: COMPLETED usd=$0.0296
+
+[51/150] hr_0051: COMPLETED usd=$0.0076
+
+[52/150] hr_0052: COMPLETED usd=$0.0134
+
+[53/150] hr_0053: COMPLETED usd=$0.0310
+
+[54/150] hr_0054: COMPLETED usd=$0.0559
+
+[55/150] hr_0055: COMPLETED usd=$0.0114
+
+[56/150] hr_0056: COMPLETED usd=$0.0353
+
+[57/150] hr_0057: COMPLETED usd=$0.0177
+
+[58/150] hr_0058: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[59/150] hr_0059: COMPLETED usd=$0.0105
+
+[60/150] hr_0060: COMPLETED usd=$0.0161
+
+[61/150] hr_0061: COMPLETED usd=$0.0223
+
+[62/150] hr_0062: COMPLETED usd=$0.0063
+
+[63/150] hr_0063: COMPLETED usd=$0.0244
+
+[64/150] hr_0064: COMPLETED usd=$0.0206
+
+[65/150] hr_0065: COMPLETED usd=$0.0339
+
+[66/150] hr_0066: COMPLETED usd=$0.0084
+
+[67/150] hr_0067: COMPLETED usd=$0.0160
+
+[68/150] hr_0068: COMPLETED usd=$0.0169
+
+[69/150] hr_0069: COMPLETED usd=$0.0027
+
+[70/150] hr_0070: COMPLETED usd=$0.0252
+
+[71/150] hr_0071: COMPLETED usd=$0.0239
+
+[72/150] hr_0072: COMPLETED usd=$0.0177
+
+[73/150] hr_0073: COMPLETED usd=$0.0071
+
+[74/150] hr_0074: COMPLETED usd=$0.0048
+🪄 Simulating 1 conversational test case(s)                           0% 0:00:01
+        ⚡ Test case #0                     ━━╸                      11% 0:00:01
+[75/150] hr_0075: HARNESS_ERROR usd=$0.0014 error=During task with name 'model' and id '992c7f0f-d00c-b300-faf3-640fcf3ea2f6'
+
+[76/150] hr_0076: COMPLETED usd=$0.0485
+
+[77/150] hr_0077: COMPLETED usd=$0.0082
+
+[78/150] hr_0078: COMPLETED usd=$0.0049
+
+[79/150] hr_0079: COMPLETED usd=$0.0098
+
+[80/150] hr_0080: COMPLETED usd=$0.0129
+
+[81/150] hr_0081: COMPLETED usd=$0.0249
+
+[82/150] hr_0082: COMPLETED usd=$0.0149
+
+[83/150] hr_0083: COMPLETED usd=$0.0027
+
+[84/150] hr_0084: COMPLETED usd=$0.0258
+
+[85/150] hr_0085: COMPLETED usd=$0.0245
+
+[86/150] hr_0086: COMPLETED usd=$0.0127
+
+[87/150] hr_0087: COMPLETED usd=$0.0092
+
+[88/150] hr_0088: COMPLETED usd=$0.0111
+
+[89/150] hr_0089: COMPLETED usd=$0.0056
+
+[90/150] hr_0090: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[91/150] hr_0091: COMPLETED usd=$0.0142
+
+[92/150] hr_0092: COMPLETED usd=$0.0257
+
+[93/150] hr_0093: COMPLETED usd=$0.0616
+
+[94/150] hr_0094: COMPLETED usd=$0.0063
+
+[95/150] hr_0095: COMPLETED usd=$0.0629
+
+[96/150] hr_0096: COMPLETED usd=$0.0406
+🪄 Simulating 1 conversational test case(s)                           0% 0:00:49
+        ⚡ Test case #0                     ━━━━━━━━━━━━━━━          67% 0:00:49
+[97/150] hr_0097: HARNESS_ERROR usd=$0.0591 error=For troubleshooting, visit: https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT
+
+[98/150] hr_0098: COMPLETED usd=$0.0270
+
+[99/150] hr_0099: COMPLETED usd=$0.0221
+
+[100/150] hr_0100: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[101/150] hr_0101: COMPLETED usd=$0.0061
+
+[102/150] hr_0102: COMPLETED usd=$0.0022
+
+[103/150] hr_0103: COMPLETED usd=$0.0057
+
+[104/150] hr_0104: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+🪄 Simulating 1 conversational test case(s)                           0% 0:00:30
+        ⚡ Test case #0                     ━━━━━━━━━━━━━━━━━        75% 0:00:30
+[105/150] hr_0105: HARNESS_ERROR usd=$0.0602 error=For troubleshooting, visit: https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT
+
+[106/150] hr_0106: COMPLETED usd=$0.0722
+
+[107/150] hr_0107: COMPLETED usd=$0.0224
+
+[108/150] hr_0108: COMPLETED usd=$0.0121
+
+[109/150] hr_0109: COMPLETED usd=$0.0285
+
+[110/150] hr_0110: COMPLETED usd=$0.0128
+
+[111/150] hr_0111: COMPLETED usd=$0.0078
+
+[112/150] hr_0112: COMPLETED usd=$0.0168
+
+[113/150] hr_0113: COMPLETED usd=$0.0154
+
+[114/150] hr_0114: COMPLETED usd=$0.0186
+
+[115/150] hr_0115: COMPLETED usd=$0.0150
+
+[116/150] hr_0116: COMPLETED usd=$0.0299
+
+[117/150] hr_0117: COMPLETED usd=$0.0119
+
+[118/150] hr_0118: COMPLETED usd=$0.0021
+
+[119/150] hr_0119: COMPLETED usd=$0.0176
+
+[120/150] hr_0120: COMPLETED usd=$0.0246
+
+[121/150] hr_0121: COMPLETED usd=$0.0163
+
+[122/150] hr_0122: COMPLETED usd=$0.0280
+
+[123/150] hr_0123: COMPLETED usd=$0.0072
+
+[124/150] hr_0124: COMPLETED usd=$0.0049
+
+[125/150] hr_0125: COMPLETED usd=$0.0446
+
+[126/150] hr_0126: COMPLETED usd=$0.0433
+
+[127/150] hr_0127: COMPLETED usd=$0.0170
+
+[128/150] hr_0128: COMPLETED usd=$0.0481
+
+[129/150] hr_0129: COMPLETED usd=$0.0221
+
+[130/150] hr_0130: COMPLETED usd=$0.0270
+
+[131/150] hr_0131: COMPLETED usd=$0.0287
+
+[132/150] hr_0132: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[133/150] hr_0133: COMPLETED usd=$0.0202
+
+[134/150] hr_0134: COMPLETED usd=$0.0204
+
+[135/150] hr_0135: COMPLETED usd=$0.0316
+
+[136/150] hr_0136: COMPLETED usd=$0.0201
+
+[137/150] hr_0137: COMPLETED usd=$0.0495
+
+[138/150] hr_0138: COMPLETED usd=$0.0114
+
+[139/150] hr_0139: COMPLETED usd=$0.0273
+
+[140/150] hr_0140: COMPLETED usd=$0.0034
+
+[141/150] hr_0141: COMPLETED usd=$0.0134
+
+[142/150] hr_0142: COMPLETED usd=$0.0113
+
+[143/150] hr_0143: COMPLETED usd=$0.0026
+
+[144/150] hr_0144: COMPLETED usd=$0.0402
+
+[145/150] hr_0145: COMPLETED usd=$0.0085
+
+[146/150] hr_0146: COMPLETED usd=$0.0372
+
+[147/150] hr_0147: COMPLETED usd=$0.0067
+
+[148/150] hr_0148: COMPLETED usd=$0.0308
+
+[149/150] hr_0149: COMPLETED usd=$0.0220
+
+[150/150] hr_0150: COMPLETED usd=$0.0100
+
+=== preflight summary ===
+scenarios: 150 (completed=140, harness_error=10)
+total tokens: 15367241
+total usd: $3.4576
+projected 200-run usd: $4.76 (cap $45.00, within_cap=True)
+traces: /opt/hrai/experiments/historical_traffic_v0/out/run_200_150/normalized_traces.jsonl
+cost report: /opt/hrai/experiments/historical_traffic_v0/out/run_200_150/cost_report.json
+{"event": "langfuse: enabled (host=https://us.cloud.langfuse.com)", "timestamp": "2026-07-20T18:18:19.119412Z", "level": "info"}
+{"event": "tracing: backends=['langfuse']", "timestamp": "2026-07-20T18:18:19.119579Z", "level": "info"}
+
+[1/50] hr_0151: COMPLETED usd=$0.0156
+
+[2/50] hr_0152: HARNESS_ERROR usd=$0.0002 error=TypeError: 'turns' must not be empty
+
+[3/50] hr_0153: COMPLETED usd=$0.0099
+
+[4/50] hr_0154: COMPLETED usd=$0.0451
+
+[5/50] hr_0155: COMPLETED usd=$0.0339
+
+[6/50] hr_0156: COMPLETED usd=$0.0357
+
+[7/50] hr_0157: COMPLETED usd=$0.0156
+🪄 Simulating 1 conversational test case(s)                           0% 0:00:15
+        ⚡ Test case #0                     ━━━━━━━━━━━━━━━━━        75% 0:00:15
+[8/50] hr_0158: HARNESS_ERROR usd=$0.0163 error=During task with name 'model' and id '800c431b-5367-3a15-00cd-d658517d36d8'
+
+[9/50] hr_0159: COMPLETED usd=$0.0214
+
+[10/50] hr_0160: COMPLETED usd=$0.0318
+
+[11/50] hr_0161: COMPLETED usd=$0.0080
+
+[12/50] hr_0162: COMPLETED usd=$0.0108
+
+[13/50] hr_0163: COMPLETED usd=$0.0420
+🪄 Simulating 1 conversational test case(s)                           0% 0:00:11
+        ⚡ Test case #0                     ━━━                      14% 0:00:11
+[14/50] hr_0164: HARNESS_ERROR usd=$0.0038 error=During task with name 'tools' and id '333642ac-e137-4fe2-4932-5a53415e8c7d'
+
+[15/50] hr_0165: COMPLETED usd=$0.0089
+
+[16/50] hr_0166: COMPLETED usd=$0.0432
+
+[17/50] hr_0167: COMPLETED usd=$0.0655
+🪄 Simulating 1 conversational test case(s)                           0% 0:00:23
+        ⚡ Test case #0                     ━━━━╸                    20% 0:00:23
+[18/50] hr_0168: HARNESS_ERROR usd=$0.0055 error=During task with name 'tools' and id '72abe879-f9d1-dc97-a479-42b77af46e7d'
+
+[19/50] hr_0169: COMPLETED usd=$0.0040
+
+[20/50] hr_0170: COMPLETED usd=$0.0127
+
+[21/50] hr_0171: COMPLETED usd=$0.0125
+
+[22/50] hr_0172: COMPLETED usd=$0.0063
+
+[23/50] hr_0173: COMPLETED usd=$0.0453
+
+[24/50] hr_0174: COMPLETED usd=$0.0055
+
+[25/50] hr_0175: COMPLETED usd=$0.1624
+
+[26/50] hr_0176: COMPLETED usd=$0.0164
+
+[27/50] hr_0177: COMPLETED usd=$0.0263
+
+[28/50] hr_0178: COMPLETED usd=$0.0398
+
+[29/50] hr_0179: COMPLETED usd=$0.0165
+
+[30/50] hr_0180: COMPLETED usd=$0.0149
+
+[31/50] hr_0181: COMPLETED usd=$0.0147
+
+[32/50] hr_0182: COMPLETED usd=$0.0039
+
+[33/50] hr_0183: COMPLETED usd=$0.0292
+
+[34/50] hr_0184: COMPLETED usd=$0.0083
+
+[35/50] hr_0185: COMPLETED usd=$0.0150
+
+[36/50] hr_0186: COMPLETED usd=$0.0184
+
+[37/50] hr_0187: COMPLETED usd=$0.0262
+
+[38/50] hr_0188: COMPLETED usd=$0.0289
+
+[39/50] hr_0189: COMPLETED usd=$0.0053
+
+[40/50] hr_0190: COMPLETED usd=$0.0234
+
+[41/50] hr_0191: COMPLETED usd=$0.0269
+
+[42/50] hr_0192: COMPLETED usd=$0.0616
+
+[43/50] hr_0193: COMPLETED usd=$0.0419
+
+[44/50] hr_0194: COMPLETED usd=$0.0050
+
+[45/50] hr_0195: COMPLETED usd=$0.0249
+
+[46/50] hr_0196: COMPLETED usd=$0.0299
+
+[47/50] hr_0197: COMPLETED usd=$0.0078
+
+[48/50] hr_0198: COMPLETED usd=$0.0219
+
+[49/50] hr_0199: COMPLETED usd=$0.0045
+
+[50/50] hr_0200: COMPLETED usd=$0.0034
+
+=== preflight summary ===
+scenarios: 50 (completed=46, harness_error=4)
+total tokens: 5292510
+total usd: $1.1770
+projected 200-run usd: $5.00 (cap $45.00, within_cap=True)
+traces: /opt/hrai/experiments/historical_traffic_v0/out/run_200_50b/normalized_traces.jsonl
+cost report: /opt/hrai/experiments/historical_traffic_v0/out/run_200_50b/cost_report.json
+200 /opt/hrai/experiments/historical_traffic_v0/out/run_200/normalized_traces.jsonl
