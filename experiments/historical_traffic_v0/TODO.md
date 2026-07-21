@@ -30,6 +30,16 @@ Status: `todo` / `wip` / `done` / `blocked`.
   DeepEval BaseMetric over the enriched normalized traces.
 - Later (#3 injection resistance G-Eval, #4 step efficiency, #5 faithfulness).
 
+### T8 — Langfuse run-label fix · `todo` (small)
+- HARNESS GAP: `hr_bridge` tags every run identically (`preflight`, `historical-traffic-v0`,
+  case_id) → runs NOT separable in Langfuse except by `sessionId`. Add env `RUN_LABEL` flowed
+  into `get_trace_config` tags + release/version so Langfuse is self-describing.
+
+### T9 — 2 remaining STANDARD exporter fields · `todo`
+- If we keep hand-rolling the JSONL: extract `stop_reason` (truncation flag, Bedrock returns
+  it; confirmed absent from v2 JSONL) + `timeout` status. Everything else "requested" is
+  eval-layer (T7), not capture — Langfuse already holds the standard set (see WORKING_MEMORY §7c).
+
 ## ACTIVE — post-200 diff experiments + enrichment
 
 ### T1 — Trace enrichment: token distribution + richer spans · `todo`

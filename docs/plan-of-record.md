@@ -189,3 +189,8 @@ Prioritized work. Set status when it changes: `todo` / `in-progress` / `done` / 
 | P1.3 | RUN_MANIFEST + rerun case-IDs + diff vs baseline → `DIFF_REPORT.md` | done | D11 |
 | T3 | Model-change exp: 200 on qwen3-32b (EC2 i-007 + DB `exp_model`) → `out/run_200_qwen32b/` | done | 191/200, $2.54 |
 | P1.4 | Manual teardown: terminate orphan EC2 `i-071d1a2189311a709` (needs admin IAM) | todo | user action |
+| P1.5 | Enrich exporter → schema `normalized-trace-v2` (tool I/O + sub_agents) | done | ca52bc8 |
+| P1.6 | Regenerate all 3 corpora on v2 exporter (baseline+codefix+qwen) | done | 14d2a78, DIFF_REPORT v2 |
+| T7 | Eval POC (DeepEval, evals #1+#2, DB-truth-first) — NEXT | todo | TODO T7 |
+| T8 | Langfuse run-label fix (runs share tags; sessionId is only split) | todo | TODO T8 |
+| T9 | 2 remaining standard exporter fields (stop_reason, timeout) | todo | TODO T9 |

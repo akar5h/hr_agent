@@ -78,18 +78,90 @@ candidates vs a client rubric; shortlist/reject/outreach; tenant-scoped).
 - Tools: `get_candidate_by_email`, `parallel_gather_candidate_info`, `fetch_linkedin`, `scrape_website`, `parse_resume`, `submit_evaluation`, `shortlist_candidate`, `reject_candidate`, `send_candidate_email`, `query_database`, `write_database`, `deduplicate_candidate`, `get_existing_evaluation`, `get_hiring_rubric`, `trigger_ats_ranking`, `store_memory`/`retrieve_memory`, `load_skill`. Decisions/emails write to `candidate_decisions`/`outbound_emails` keyed by session.
 - Seeded clients: `client-techcorp`, `client-startupai`. Positions: `pos-techcorp-spe/sre/de`, `pos-startupai-mle/aie`.
 
-## 6. Baseline 200-run results (qwen3-235b, temp=0)
-185/200 completed, 15 harness-error (13 empty-turns + 2 agent-loops), **$4.39**, 462+ Langfuse traces.
-26 committed decisions; 151/185 distinct tool-sequences (81%); 20 tools; distribution as frozen.
-Outputs: `out/run_150/`, `out/run_50b/`, `out/run_200/` (`normalized_traces_200.jsonl`, `REPORT_200.md`, `CONVERSATIONS_200.md`).
-**Bugs found (evidence-backed):** wrong-email-lookup 33/200 (~17%, agent ignores the provided email, sometimes hallucinates a wrong name e.g. `chen.liu` for Alice Chen); `search_web` overuse 42/200; tool-flailing 4 (22–28 calls); injection-influence hr_0095 (Owen 8.6/HIRE). Clean: 0 ungrounded evals, 0 double-decisions (idempotency works post-fix), 0 weak-score-inflation.
+## 6. Baseline 200-run results (ORIGINAL frozen, qwen3-235b, temp=0, OLD exporter)
+185/200 completed, **$4.39**; 26 committed decisions. Output: `out/run_200/` originally held
+`normalized_traces_200.jsonl` (v1 schema). **NOTE: `out/run_200/` was REGENERATED on the v2
+exporter (see §9); the old v1 copies are preserved as `out/*_v1schema/`.**
+**Bugs found (evidence-backed):** wrong-email-lookup ~33/200 (agent ignores/hallucinates the
+provided email); `search_web` overuse; tool-flailing; injection-influence (Owen). Clean: no
+ungrounded double-decisions.
 
-## 7. Not-yet-captured / enrichment gap
-Traces do NOT break token usage down by **system-prompt vs context vs memory vs tools vs reasoning**. Only total in/out per turn (usage_metadata). Enriching this needs per-component accounting (see TODO).
+## 7. SESSION HANDOFF — state as of 2026-07-21 (READ THIS)
 
-## 8. Open experiments — see TODO.md
-- **Exp A (model change):** run the same 200 on `qwen.qwen3-32b-v1:0` (cheap, same family) on its own EC2 + own DB.
-- **Exp B (code change):** fix the wrong-email lookup bug, rerun 200 on the SAME model (qwen3-235b) on its own EC2 + own DB.
-- Both independent → run on 2 isolated EC2s + 2 DBs (separate dbname), cost-aware, kill after.
-- Token-distribution capture + trace enrichment (OTEL/Langfuse).
-- Optional: bounded parallelism within a box (Bedrock TPM is the shared ceiling — more/bigger EC2 does NOT speed a single run; 2 EC2s here are for experiment ISOLATION, not throughput).
+### 7a. What shipped (branch `feat/bedrock-traffic-harness`, ~15 commits)
+- **Candidate release v1 (D11):** "eval is not terminal" — decision follows eval when the
+  user's goal is a decision. 3-file conditional reframe (submit_evaluation docstring +
+  system prompt + `evaluate_candidate.md`), PROMPT_VERSION `candidate-screening-v3-decision-
+  followthrough`. Commits `c02e161`(+`ff0d34e` test fix). NO model change. `CHANGE_HYPOTHESIS.md`.
+- **Observability, standard fields only (user rule: NO bespoke scorer-shaped fields):**
+  `ece0407` captured tool results + system prompt; `ca52bc8` enriched to **schema
+  `normalized-trace-v2`**: per-tool `events[].tool_calls[]` = {name, arguments,
+  result_summary(≤2000, resume-safety fields preserved), status, error, latency_ms, cached}
+  via `workflow._wrap_tool`; `sub_agents[]` (ATS: model/input/ranked_output/ran_all_4_steps;
+  SQL-gen: generated_sql/executed_ok/client_id_filter_present) via new leaf module
+  `src/observability/trace_capture.py`. Pure observability — agent behavior unchanged.
+- **3 paired 200-runs, twice.** v1-schema first (`b6eb981`), then ALL 3 regenerated on the
+  v2 exporter (`14d2a78`). Baseline regenerated too.
+
+### 7b. v2 DIFF (canonical, `DIFF_REPORT.md`, DB-truth decision_observable, 200 cases)
+| run (v2) | box | model | DB | completed | eval | decisions | stop% | cost |
+|---|---|---|---|---|---|---|---|---|
+| baseline (v0 agent) | i-007 | 235b | exp_base | 186 | 37 | 17 | 76% | $4.63 |
+| codefix (v1 agent) | i-016 | 235b | exp_code | 186 | 41 | 26 | 63% | $4.70 |
+| qwen32b (v0 agent) | i-007 | 32b | exp_model | 189 | 62 | 12 | 89% | $2.51 |
+- **KEY honest finding:** regenerated baseline = 17 decisions vs old frozen 23 (SAME v0 code)
+  → MoE/temp-0 noise ~±6. Code fix (−13pp stop, +9 decisions) is ABOVE noise → real but
+  single-sample. Do NOT overclaim. N-sample to make it decisive (parked).
+- Traces at `out/run_200/`, `out/run_200_codefix/`, `out/run_200_qwen32b/`
+  (`normalized_traces.jsonl` + `RUN_MANIFEST.json`). S3 mirror `s3://.../out/<run>/`.
+  Tarballs: `code/hrai_v0agent_v2.tgz` (baseline+qwen), `code/hrai_v1agent_v2.tgz` (codefix).
+
+### 7c. Langfuse — full data IS there, but runs are NOT tag-distinguished (GOTCHA)
+- All v2 runs captured in Langfuse cloud (2785 traces, 14809 gens, 17:31–19:06 UTC 07-20).
+  Langfuse holds the FULL span tree natively: TOOL spans (input args + output result +
+  level/statusMessage), GENERATION (model + per-call token usage + latency + cost + input/
+  output), **stopReason** (truncation), rich metadata (prompt_version, ls_temperature,
+  langgraph_node, sessionId, userId). Verified by pulling `preflight-hr_0199`.
+- **Only local stores:** the v2 normalized JSONL (a SUBSET — missing stopReason + per-LLM-call
+  token breakdown) and Postgres (outcomes only). No local span store. Langfuse free tier =
+  retention/ingestion limits → pull via API if durable-offline needed.
+- **HARNESS GAP:** `hr_bridge` tags EVERY run identically: `tags=["preflight",
+  "historical-traffic-v0", <case_id>]`, `condition="preflight"`, no release/version. So
+  `historical-traffic-v0` = ALL runs (3511); no `codefix`/`qwen` tag exists. **The ONLY
+  reliable run-label in Langfuse is `sessionId`** (`pf-hr_XXXX-<hash>`; hash differs per run).
+  To split runs: take the 200 session_ids from a run's local JSONL → query Langfuse by
+  sessionId. (qwen also separable by 32b-only model; baseline vs codefix ran concurrently,
+  same tags/235b → session_id is the ONLY split.)
+
+### 7d. Infra state NOW
+- Boxes **i-016 + i-007 STOPPED** (project-tagged; restartable). Code trees: i-007 = v0 agent,
+  i-016 = v1 agent (from the regen). exp DBs on RDS: `exp_base`, `exp_code`, `exp_model` (all
+  seeded, reusable). Original baseline DB untouched.
+- **ORPHAN `i-071d1a2189311a709` STILL RUNNING** — I launched it without `project=hr-traffic-v0`
+  tag; provisioner IAM (`Ec2LifecycleOnlyProjectTagged`) can't stop/terminate untagged boxes.
+  **USER must terminate with admin IAM:** `aws ec2 terminate-instances --region ap-south-1
+  --instance-ids i-071d1a2189311a709`. (Also: provisioner CANNOT self-grant IAM — classifier-
+  blocked; don't retry.)
+
+## 8. NEXT TASKS (priority order — see TODO.md T7)
+1. **T7 — Eval POC (DeepEval).** CONFIRMED plan: DeepEval (in harness, pytest CI, no reshape);
+   POC = evals #1 (grounded-decision completion, DB-truth assertion + Task Completion) + #2
+   (identity resolution: join `get_candidate_by_email` args vs scenario `candidate_identity_id`
+   → `candidate_identities.json` email; 55% not-found is the target). DB-truth-first hybrid
+   (deterministic gates primary, LLM-judge for fuzzy). 4-bucket dataset (stratified/adversarial=
+   security family/edge/failure-replays), score PER-BUCKET, baseline↔candidate diff = CI gate.
+   Later: #3 injection-resistance G-Eval, #4 step-efficiency, #5 faithfulness.
+2. **Langfuse run-label fix** (small): add env `RUN_LABEL` → `get_trace_config` tags +
+   release/version so Langfuse is self-describing (removes the §7c session_id join need). Future.
+3. **Missing STANDARD exporter fields** (if we keep hand-rolling): `stop_reason` (truncation)
+   + `timeout` status. Everything else "requested" is EVAL-layer detection (T7), not capture —
+   see the observability audit (§7c): Langfuse already has the standard set.
+4. Optional: N-sample the M01 goal slate to make the code-fix effect decisive vs the ±6 noise.
+
+### Standard-vs-custom audit verdict (settled this session)
+Requested "missing" trace fields are mostly STANDARD (Langfuse/OTEL native) — we missed them
+only because the normalized JSONL is a hand-rolled reconstruction from the LangGraph stream.
+The genuine customs (error-treated-as-success, recovery type, PII/entitlement leak, scores-in-
+email, rage, task-evasion) are DERIVED EVAL SIGNALS (T7), not capture fields. Goal/expected =
+dataset label (join from `scenarios_*.jsonl`). Standard way = consume the Langfuse/OTEL span
+tree, don't reconstruct.
