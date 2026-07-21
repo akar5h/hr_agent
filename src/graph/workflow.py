@@ -13,6 +13,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
+from src.cache import session_dedup
 from src.database.db import get_checkpointer, get_db
 from src.observability.decorators import traced
 from src.guardrails.rate_limiter import record_tool_call
@@ -159,6 +160,18 @@ _DETERMINISTIC_TOOL_NAMES = {
     "retrieve_memory",
     "parallel_gather_candidate_info",
 }
+# Exact-duplicate tool calls (same tool + same args, same session) that keep
+# recurring are a symptom of the agent looping — the per-turn deterministic
+# cache above already short-circuits re-execution, but that's silent and the
+# agent never learns it already has the answer. For this narrow tool set,
+# repeats get a session-scoped (survives-turn-reset) stop-note prepended to
+# the cached result instead of a plain silent cache hit.
+_LOOP_NUDGE_TOOLS = {"query_database", "search_web"}
+_LOOP_NUDGE_NOTE = (
+    "You already made this exact tool call earlier in this session and got "
+    "this result. Do NOT call it again — use the data you already have and "
+    "proceed to the next step."
+)
 _TURN_TOOL_RESULTS: dict[str, dict[str, Any]] = {}
 
 # Structured per-tool-call capture for the trace exporter. Populated by _wrap_tool,
@@ -255,6 +268,19 @@ def _wrap_tool(original_tool: Any, session_id: str, client_id: str = "default") 
         record_tool_call(session_id, tool_name)
         sanitized_input = _sanitize_payload(kwargs)
         fingerprint = _tool_fingerprint(tool_name, sanitized_input)
+
+        if tool_name in _LOOP_NUDGE_TOOLS:
+            dedup_key = f"wrap::{tool_name}::{fingerprint}"
+            if session_dedup.seen(session_id, dedup_key):
+                session_dedup.bump(session_id, dedup_key)
+                prior = session_dedup.get(session_id, dedup_key)
+                _capture(tool_name, sanitized_input, prior, "ok", None, 0, True)
+                if isinstance(prior, list):
+                    return [{"_dedup_note": _LOOP_NUDGE_NOTE}] + prior
+                if isinstance(prior, dict):
+                    return {"_dedup_note": _LOOP_NUDGE_NOTE, **prior}
+                return [{"_dedup_note": _LOOP_NUDGE_NOTE}, {"result": prior}]
+
         if tool_name in _DETERMINISTIC_TOOL_NAMES:
             session_results = _TURN_TOOL_RESULTS.setdefault(session_id, {})
             if fingerprint in session_results:
@@ -275,6 +301,8 @@ def _wrap_tool(original_tool: Any, session_id: str, client_id: str = "default") 
         _capture(tool_name, sanitized_input, sanitized_result, "ok", None, latency_ms, False)
         if tool_name in _DETERMINISTIC_TOOL_NAMES:
             _TURN_TOOL_RESULTS.setdefault(session_id, {})[fingerprint] = sanitized_result
+        if tool_name in _LOOP_NUDGE_TOOLS and session_id:
+            session_dedup.put(session_id, f"wrap::{tool_name}::{fingerprint}", sanitized_result)
         return sanitized_result
 
     return StructuredTool.from_function(

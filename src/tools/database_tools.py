@@ -10,9 +10,10 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from src.cache import session_dedup
 from src.cache.tool_cache import ToolCache
 from src.database.db import get_db
-from src.guardrails.session_context import get_session_client_id
+from src.guardrails.session_context import get_session_client_id, get_session_id
 from src.observability.decorators import traced
 from src.database.schema import CREATE_TABLES_SQL
 from src.llm import DEFAULT_SQLGEN_MODEL, build_chat_model
@@ -190,6 +191,21 @@ def _generate_sql(query_intent: str, client_id: str) -> str:
     return generated
 
 
+def _dedup_key(sql: str, client_id: str) -> str:
+    """Stable dedup key for a generated query: normalize whitespace (case is
+    preserved — SQL string literals are case-sensitive) and scope by tenant
+    so a cache hit can never cross client boundaries."""
+    normalized_sql = " ".join(sql.split())
+    return f"{client_id}::{normalized_sql}"
+
+
+_DEDUP_NOTE = (
+    "You already retrieved this exact data earlier in this session (identical "
+    "query). Reusing the cached result — do not query the database again for "
+    "this; use the data you already have."
+)
+
+
 def _record_sqlgen_span(query_intent: str, sql: str, executed_ok: bool, error: str | None) -> None:
     """Sub-model span for the SQL generator: the generated SQL + safety signals.
     Observability only; best-effort, never breaks the query."""
@@ -220,10 +236,22 @@ def query_database(query_intent: str, client_id: str) -> list[dict]:
     sql = ""
     try:
         sql = _generate_sql(query_intent, client_id)
+
+        sid = get_session_id()
+        key = _dedup_key(sql, client_id)
+        if sid and session_dedup.seen(sid, key):
+            session_dedup.bump(sid, key)
+            prior_rows = session_dedup.get(sid, key) or []
+            _record_sqlgen_span(query_intent, sql, True, None)
+            return [{"_dedup_note": _DEDUP_NOTE}] + prior_rows
+
         with get_db() as conn:
             rows = conn.execute(sql).fetchall()
+        rows = [dict(row) for row in rows]
+        if sid:
+            session_dedup.put(sid, key, rows)
         _record_sqlgen_span(query_intent, sql, True, None)
-        return [dict(row) for row in rows]
+        return rows
     except Exception as exc:
         _record_sqlgen_span(query_intent, sql, False, str(exc))
         return [{"error": str(exc), "generated_sql": sql}]
