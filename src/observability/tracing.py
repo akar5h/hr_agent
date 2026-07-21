@@ -12,12 +12,17 @@ Per-function tracing is handled by ``src.observability.decorators.traced``.
 
 from __future__ import annotations
 
+import atexit
 import os
 from typing import Any, Optional
 
 from src.observability.logging import get_logger
 
 log = get_logger(__name__)
+
+# Guard so repeated configure_tracing() calls don't double-register the local
+# OTEL span processor or the atexit flush hook.
+_LOCAL_OTEL_REGISTERED = False
 AGENT_VERSION = os.getenv("AGENT_VERSION", "hr-ai-reliability-v2")
 PROMPT_VERSION = os.getenv("PROMPT_VERSION", "candidate-screening-v2-reliability")
 TOOL_VERSION = os.getenv("TOOL_VERSION", "tools-v2-reliability")
@@ -130,6 +135,58 @@ def _build_langfuse_metadata(
     return meta
 
 
+# ── Local OTEL mirror ─────────────────────────────────────────────────
+def _configure_local_otel() -> bool:
+    """Add a local file exporter to the global OTEL TracerProvider.
+
+    Langfuse v4 registers its span processor into the global provider. We
+    force Langfuse init, grab that same provider, and attach a second span
+    processor that mirrors every span to per-trace JSONL files on disk.
+
+    Requires Langfuse to be enabled (it owns provider setup). If the global
+    provider is still the no-op proxy, we log and skip rather than install a
+    provider that Langfuse's handler wouldn't write to.
+    """
+    global _LOCAL_OTEL_REGISTERED
+    if not _is_enabled("ENABLE_LOCAL_OTEL"):
+        return False
+    if _LOCAL_OTEL_REGISTERED:
+        return True
+
+    output_dir = os.getenv("LOCAL_OTEL_DIR", "traces/otel/")
+
+    # Force Langfuse init so the global provider exists.
+    try:
+        from langfuse import get_client
+    except ImportError:
+        log.warning("local_otel: skipped (langfuse package not installed)")
+        return False
+    get_client()
+
+    from opentelemetry import trace as otel_trace
+    from opentelemetry.trace import ProxyTracerProvider
+
+    provider = otel_trace.get_tracer_provider()
+    if isinstance(provider, ProxyTracerProvider):
+        log.warning(
+            "local_otel: skipped (no real OTEL provider — enable Langfuse "
+            "so it initialises the global TracerProvider)"
+        )
+        return False
+
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    from src.observability.local_otel_exporter import LocalOtelFileExporter
+
+    provider.add_span_processor(
+        BatchSpanProcessor(LocalOtelFileExporter(output_dir))
+    )
+    atexit.register(provider.force_flush)
+    _LOCAL_OTEL_REGISTERED = True
+    log.info("local_otel: enabled (dir=%s)", output_dir)
+    return True
+
+
 # ── Public API ────────────────────────────────────────────────────────
 def configure_tracing() -> dict[str, bool]:
     """Initialise all enabled tracing backends.
@@ -140,6 +197,8 @@ def configure_tracing() -> dict[str, bool]:
     status = {
         "langsmith": _configure_langsmith(),
         "langfuse": _configure_langfuse(),
+        # After langfuse so the global OTEL provider exists first.
+        "local_otel": _configure_local_otel(),
     }
     active = [k for k, v in status.items() if v]
     log.info("tracing: backends=%s", active or "none")
