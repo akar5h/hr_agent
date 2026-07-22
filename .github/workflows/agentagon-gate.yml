@@ -55,6 +55,14 @@ jobs:
             core.setOutput("ref", pr.data.head.sha);
             core.setOutput("number", context.payload.issue.number);
 
+      # Demo-only: a visible 20s hold so a screen recording can be started after the
+      # run is triggered but before any output appears. Remove for real use.
+      - name: Hold for demo recording (20s)
+        if: steps.check.outputs.proceed == 'true'
+        run: |
+          echo "agentagon gate queued — holding 20s so the recording can start..."
+          sleep 20
+
       - uses: actions/checkout@v4
         if: steps.check.outputs.proceed == 'true'
         with:
