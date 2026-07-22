@@ -65,8 +65,8 @@ BLOCK_THRESHOLD_PTS = 15
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--baseline", type=Path, default=HERE / "traces/baseline/normalized_traces.jsonl")
-    parser.add_argument("--candidate", type=Path, default=HERE / "traces/candidate/normalized_traces.jsonl")
+    parser.add_argument("--baseline", type=Path, default=HERE / "corpus/baseline/normalized_traces.jsonl")
+    parser.add_argument("--candidate", type=Path, default=HERE / "corpus/candidate/normalized_traces.jsonl")
     parser.add_argument("--out", type=Path, default=HERE / "RESULT.json")
     parser.add_argument("--verdict-out", type=Path, default=HERE / "verdict.txt")
     parser.add_argument("--ascii-out", type=Path, default=HERE / "ascii.txt")
