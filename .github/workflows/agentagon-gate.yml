@@ -111,7 +111,7 @@ jobs:
             // `npm run dev`. Swap for the hosted URL (e.g. your deployed Vercel app's
             // `/release/<pair>` page) once this is running against a real deployment;
             // see README.md "Placeholders you must fill in".
-            const releaseDiffUrl = "https://neurotic-morphine-unbroken.ngrok-free.dev/release/fix";
+            const releaseDiffUrl = "https://neurotic-morphine-unbroken.ngrok-free.dev/";
             const status = blocked ? "🚫 BLOCK" : review ? "⚠️ REVIEW" : "✅ SHIP";
             const body = [
               marker,
