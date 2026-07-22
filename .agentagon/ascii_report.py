@@ -23,16 +23,19 @@ _SIDE_WIDTH = 12
 _DASH_WIDTH = 46
 
 
-def _top_label_pct(side: dict[str, Any]) -> tuple[str, int]:
-    """Largest-share label in a distribution, as `(label, rounded_pct)`. Mirrors
-    `topShare()` in agentagon-demo's `lib/gate.ts` — always reads the raw counts in
-    `distribution`, even for PERCENT measurements that also carry a `rate` field."""
+def _measured_pct(side: dict[str, Any]) -> str:
+    """The measured ("true") share of a boolean measurement, e.g. the share of traces
+    that DID loop — one decimal, matching what the agentagon-demo release-diff UI
+    renders. Deliberately NOT the largest-share label: for these gates the majority
+    label is "false" (not-looping), so a top-label render prints `false 62% -> 70%`,
+    which reads as the inverse of the site's `37.5% -> 29.5%` for the same data. The
+    PR comment and the UI must show the same number the same way."""
     distribution = side.get("distribution") or {}
     total = sum(distribution.values())
     if total == 0:
-        return "n/a", 0
-    label, count = max(distribution.items(), key=lambda item: item[1])
-    return label, round(count / total * 100)
+        return "n/a"
+    measured = distribution.get("true", 0)
+    return f"{measured / total * 100:.1f}%"
 
 
 def render_ascii_report(result: dict[str, Any]) -> str:
@@ -43,10 +46,8 @@ def render_ascii_report(result: dict[str, Any]) -> str:
         f"  {'-' * _DASH_WIDTH}",
     ]
     for row in result["diff"]:
-        base_label, base_pct = _top_label_pct(row["baseline"])
-        cand_label, cand_pct = _top_label_pct(row["candidate"])
-        base_str = f"{base_label} {base_pct}%"
-        cand_str = f"{cand_label} {cand_pct}%"
+        base_str = _measured_pct(row["baseline"])
+        cand_str = _measured_pct(row["candidate"])
         lines.append(
             f"  {row['id']:<{_ID_WIDTH}} {base_str:>{_SIDE_WIDTH}} -> {cand_str:>{_SIDE_WIDTH}}  ~"
         )
