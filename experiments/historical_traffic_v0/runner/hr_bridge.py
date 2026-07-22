@@ -317,6 +317,15 @@ class HrAgentBridge:
             # importable in this environment; never let flushing crash a run.
             pass
 
+        try:
+            from src.cache.session_dedup import reset as reset_session_dedup
+
+            reset_session_dedup(self.session_id)
+        except Exception:
+            # Best-effort: a long harness run shouldn't accumulate dedup state
+            # unboundedly, but failing to reset must never break flush().
+            pass
+
 
 def make_model_callback(
     scenario: dict[str, Any], session_id: str, client_id: str

@@ -1,0 +1,2 @@
+.agentagon/vendor/** linguist-vendored
+.agentagon/traces/** linguist-generated
